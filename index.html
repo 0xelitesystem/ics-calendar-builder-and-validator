@@ -1,0 +1,2235 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ICS Calendar Builder and Validator</title>
+<meta name="description" content="Paste an .ics calendar file and get RFC 5545 findings grouped into MUST violations, SHOULD-level findings and interoperability notes, or build an event file folded correctly at 75 octets. One HTML file, nothing leaves your browser.">
+<link rel="canonical" href="https://0xelitesystem.github.io/ics-calendar-builder-and-validator/">
+<meta property="og:type" content="website">
+<meta property="og:title" content="ICS Calendar Builder and Validator">
+<meta property="og:description" content="RFC 5545 findings grouped into MUST violations, SHOULD-level findings and interoperability notes. Or build an event file folded correctly at 75 octets. One HTML file, offline.">
+<meta property="og:url" content="https://0xelitesystem.github.io/ics-calendar-builder-and-validator/">
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"SoftwareApplication","name":"ICS Calendar Builder and Validator","applicationCategory":"DeveloperApplication","operatingSystem":"Any (browser)","offers":{"@type":"Offer","price":"0","priceCurrency":"USD"},"url":"https://0xelitesystem.github.io/ics-calendar-builder-and-validator/","author":{"@type":"Person","name":"0xelitesystem","url":"https://elitesystem.ai"}}
+</script>
+<style>
+:root{
+  color-scheme:light dark;
+  --bg:#f4f6f9; --surface:#ffffff; --chip:#e9edf3;
+  --row-must:#fbeeea; --row-should:#fbf3e4; --row-note:#eaf0f8;
+  --ink:#12151a; --ink-soft:#464c57;
+  --ok:#17603a; --warn:#8a4d00; --err:#a82d14; --info:#1a4f8a;
+  --link:#0b4ea8; --focus:#0b4ea8;
+  --muted:#7f858f;
+  --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;
+  --sans:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
+}
+@media (prefers-color-scheme:dark){
+  :root{
+    --bg:#0f1216; --surface:#171b21; --chip:#222831;
+    --row-must:#2b1613; --row-should:#2a2010; --row-note:#131f2c;
+    --ink:#eef1f5; --ink-soft:#b6bfcb;
+    --ok:#6fd79a; --warn:#e6ad57; --err:#ff9077; --info:#84bef5;
+    --link:#93c7ff; --focus:#93c7ff;
+    --muted:#6b7481;
+  }
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{background:var(--bg);color:var(--ink);font:16px/1.55 var(--sans);overflow-x:hidden}
+.wrap{max-width:74rem;margin:0 auto;padding:1.5rem 1rem 4rem}
+h1{font-size:1.6rem;line-height:1.25;margin:0 0 .35rem}
+h2{font-size:1.15rem;margin:1.75rem 0 .6rem}
+h3{font-size:1rem;margin:1.25rem 0 .5rem}
+p{margin:.55rem 0}
+a{color:var(--link)}
+.lede{color:var(--ink-soft);max-width:62ch;margin-bottom:1rem}
+.card{background:var(--surface);border:1px solid var(--muted);border-radius:10px;padding:1rem 1.1rem;margin:1rem 0}
+label{display:block;font-weight:600;margin:.75rem 0 .25rem}
+.hint{color:var(--ink-soft);font-size:.86rem;font-weight:400;margin:.15rem 0 0}
+textarea,input[type=text],input[type=number],input[type=datetime-local],select{
+  width:100%;background:var(--surface);color:var(--ink);border:1px solid var(--muted);
+  border-radius:7px;padding:.5rem .6rem;font:14px/1.5 var(--mono)}
+/* The user agent paints its own placeholder grey (#757575 in Chromium, in both
+   themes). On --surface that measures 4.61:1 light and 3.75:1 dark, so the dark
+   theme misses AA at 14px. --ink-soft measures 8.64:1 light and 9.30:1 dark. */
+textarea::placeholder,input::placeholder{color:var(--ink-soft);opacity:1}
+textarea{min-height:8.5rem;resize:vertical}
+input[type=file]{color:var(--ink);font:14px/1.5 var(--sans);max-width:100%}
+button{background:var(--chip);color:var(--ink);border:1px solid var(--muted);border-radius:7px;
+  padding:.5rem .9rem;font:600 14px/1.2 var(--sans);cursor:pointer}
+button:hover{border-color:var(--ink-soft)}
+button[aria-selected=true]{background:var(--surface);border-color:var(--ink);border-bottom-color:var(--surface)}
+:focus-visible{outline:3px solid var(--focus);outline-offset:2px}
+.row{display:flex;flex-wrap:wrap;gap:.6rem;align-items:center;margin-top:.9rem}
+.grid{display:grid;gap:.6rem 1rem;grid-template-columns:repeat(auto-fit,minmax(15rem,1fr))}
+[role=tablist]{display:flex;gap:.4rem;border-bottom:1px solid var(--muted);margin-top:1rem}
+[role=tab]{border-radius:7px 7px 0 0;margin-bottom:-1px}
+pre{background:var(--surface);border:1px solid var(--muted);border-radius:8px;padding:.7rem .8rem;
+  font:13px/1.5 var(--mono);overflow-x:auto;white-space:pre;margin:.6rem 0}
+code{font-family:var(--mono);font-size:.92em}
+.verdict{border:1px solid var(--muted);border-radius:9px;padding:.8rem 1rem;background:var(--surface);margin:1rem 0}
+.verdict h2{margin:.1rem 0 .4rem;font-size:1.05rem}
+.counts{display:flex;flex-wrap:wrap;gap:.5rem;margin:.5rem 0 0;padding:0;list-style:none}
+.counts li{background:var(--chip);border:1px solid var(--muted);border-radius:999px;padding:.2rem .7rem;font:600 13px/1.6 var(--sans)}
+.legend{display:grid;gap:.5rem;margin:.4rem 0 0;padding:0;list-style:none}
+.legend li{border-left:4px solid var(--muted);padding:.35rem .7rem;background:var(--chip);border-radius:0 6px 6px 0}
+.tier{font:700 12px/1.4 var(--sans);letter-spacing:.06em}
+.t-must{color:var(--err)} .t-should{color:var(--warn)} .t-note{color:var(--info)}
+.findings{list-style:none;margin:.5rem 0 0;padding:0}
+.findings li{border:1px solid var(--muted);border-radius:8px;padding:.6rem .75rem;margin:.45rem 0}
+.f-must{background:var(--row-must)} .f-should{background:var(--row-should)} .f-note{background:var(--row-note)}
+.f-head{display:flex;flex-wrap:wrap;gap:.5rem;align-items:baseline}
+.f-title{font-weight:700}
+.f-where{color:var(--ink-soft);font:13px/1.5 var(--mono)}
+.f-detail{margin:.3rem 0 0}
+blockquote{margin:.45rem 0 0;padding:.35rem 0 .35rem .75rem;border-left:3px solid var(--muted);
+  color:var(--ink-soft);font-size:.9rem}
+blockquote cite{display:block;font-style:normal;font-weight:600;margin-top:.25rem;font-size:.85rem}
+.notice{border:1px solid var(--warn);border-left-width:5px;border-radius:0 8px 8px 0;
+  background:var(--row-should);padding:.6rem .8rem;margin:.9rem 0}
+.notice .tier{color:var(--warn)}
+.err-box{border:1px solid var(--err);border-left-width:5px;border-radius:0 8px 8px 0;
+  background:var(--row-must);padding:.6rem .8rem;margin:.9rem 0}
+.err-box .tier{color:var(--err)}
+table{border-collapse:collapse;width:100%;font-size:.9rem}
+th,td{text-align:left;border-bottom:1px solid var(--muted);padding:.35rem .5rem;vertical-align:top}
+th{font-weight:700}
+.scroll{overflow-x:auto}
+.pass{color:var(--ok);font-weight:700}
+.fail{color:var(--err);font-weight:700}
+.ctl{color:var(--warn);font-weight:700}
+footer{margin-top:2.5rem;border-top:1px solid var(--muted);padding-top:1rem;color:var(--ink-soft);font-size:.9rem}
+[hidden]{display:none!important}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <h1>ICS Calendar Builder and Validator</h1>
+  <p class="lede">Paste an <code>.ics</code> calendar file and get RFC 5545 findings grouped into MUST violations,
+  SHOULD-level findings and interoperability notes, or build an event file folded correctly at 75 octets.
+  One HTML file, nothing leaves your browser.</p>
+</header>
+
+<div role="tablist" aria-label="Mode">
+  <button role="tab" id="tab-validate" aria-selected="true" aria-controls="panel-validate">Validate</button>
+  <button role="tab" id="tab-build" aria-selected="false" aria-controls="panel-build" tabindex="-1">Build</button>
+</div>
+
+<!-- ============================ VALIDATE ============================ -->
+<section id="panel-validate" role="tabpanel" aria-labelledby="tab-validate">
+
+  <div class="card">
+    <h2>Input</h2>
+    <p class="hint">Two input paths, and they are not equivalent. The uploaded-file path gives this page the raw
+    octets, so every byte-level check is exact. The paste path does not.</p>
+
+    <label for="file">Upload an .ics file (exact octets)</label>
+    <input type="file" id="file" accept=".ics,text/calendar" aria-describedby="file-hint">
+    <p class="hint" id="file-hint">Read locally with FileReader. The file is never uploaded anywhere.</p>
+
+    <label for="paste">Or paste .ics text</label>
+    <textarea id="paste" spellcheck="false" aria-describedby="paste-hint"
+      placeholder="BEGIN:VCALENDAR&#10;VERSION:2.0&#10;PRODID:-//Example Corp//Example Calendar//EN&#10;BEGIN:VEVENT&#10;UID:1@example.com&#10;DTSTAMP:20260101T000000Z&#10;DTSTART:20260101T090000Z&#10;SUMMARY:Example&#10;END:VEVENT&#10;END:VCALENDAR"></textarea>
+    <p class="hint" id="paste-hint">Your browser decodes pasted text before this page sees it, so three checks are
+    weaker on this path. The page says so on screen when you use it.</p>
+
+    <div class="row">
+      <button id="btn-check" type="button">Check</button>
+      <button id="btn-fixture" type="button">Load self-test fixtures</button>
+      <button id="btn-selftest" type="button">Run self test</button>
+      <button id="btn-clear" type="button">Clear</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>The three tiers</h2>
+    <ul class="legend">
+      <li><span class="tier t-must">MUST</span> A normative requirement of RFC 5545 is not met. The object does not
+        conform.</li>
+      <li><span class="tier t-should">SHOULD</span> The RFC recommends against this, using the word SHOULD or SHOULD
+        NOT. It is a recommendation, not a requirement.</li>
+      <li><span class="tier t-note">NOTE</span> An interoperability observation. The RFC does not forbid it.</li>
+    </ul>
+    <p>A file that fails only SHOULD-level checks is still a conforming iCalendar object. The three counts are
+    reported separately and are never added together into one error number.</p>
+  </div>
+
+  <div id="paste-warning" class="notice" hidden>
+    <span class="tier">NOTE, INPUT PATH</span>
+    <p class="f-detail">Pasted text was decoded by your browser before this page saw it. The line-ending, the
+    split-codepoint and the charset checks are exact only on the uploaded-file path.</p>
+  </div>
+
+  <div id="input-error" class="err-box" hidden>
+    <span class="tier">INPUT REFUSED</span>
+    <p class="f-detail" id="input-error-text"></p>
+    <pre id="input-error-extra" hidden></pre>
+  </div>
+
+  <div id="verdict" class="verdict" aria-live="polite" hidden></div>
+
+  <div id="results" hidden>
+    <h2 id="h-must">MUST findings</h2>
+    <ul class="findings" id="list-must" aria-labelledby="h-must"></ul>
+    <h2 id="h-should">SHOULD findings</h2>
+    <ul class="findings" id="list-should" aria-labelledby="h-should"></ul>
+    <h2 id="h-note">Notes</h2>
+    <ul class="findings" id="list-note" aria-labelledby="h-note"></ul>
+  </div>
+
+  <div id="selftest" class="card" hidden>
+    <h2>Self test</h2>
+    <p id="selftest-summary"></p>
+    <div class="scroll">
+      <table id="selftest-table">
+        <thead><tr><th scope="col">Assertion</th><th scope="col">Expected</th><th scope="col">Observed</th><th scope="col">Result</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+    <p class="hint">The last row is a positive control. It is an assertion written to fail on purpose. If it ever
+    stops failing, or does not appear at all, the self test itself has stopped running and nothing above it can be
+    trusted.</p>
+  </div>
+
+</section>
+
+<!-- ============================== BUILD ============================== -->
+<section id="panel-build" role="tabpanel" aria-labelledby="tab-build" hidden>
+
+  <div class="card">
+    <h2>Build an event</h2>
+    <p class="hint">Output is folded at 75 octets measured over the UTF-8 encoding, never inside a multi-octet
+    sequence, every line terminated CRLF, every TEXT value escaped per RFC 5545 section 3.3.11. That is output
+    hygiene. Folding is not required by the RFC, it is recommended.</p>
+
+    <div class="grid">
+      <div>
+        <label for="b-summary">SUMMARY</label>
+        <input type="text" id="b-summary" value="Design review, phase 2; room B">
+      </div>
+      <div>
+        <label for="b-location">LOCATION</label>
+        <input type="text" id="b-location" value="Café Zoë, 12 rue de l'Église, Paris">
+      </div>
+    </div>
+
+    <label for="b-description">DESCRIPTION</label>
+    <textarea id="b-description" style="min-height:4.5rem">Bring the numbers, the fixtures, and the objections.</textarea>
+
+    <div class="grid">
+      <div>
+        <label for="b-timemode">Time reference</label>
+        <select id="b-timemode">
+          <option value="utc" selected>UTC (Z suffix)</option>
+          <option value="floating">Floating local time (no timezone)</option>
+          <option value="tzid">Named TZID</option>
+        </select>
+      </div>
+      <div>
+        <label for="b-tzid">TZID</label>
+        <input type="text" id="b-tzid" value="Europe/Paris" disabled>
+        <p class="hint">Enabled only in TZID mode.</p>
+      </div>
+    </div>
+
+    <div id="tzid-warning" class="notice" hidden>
+      <span class="tier">READ THIS BEFORE USING TZID</span>
+      <p class="f-detail">RFC 5545 section 3.2.19 requires a matching VTIMEZONE component in the same object for
+      every unique TZID parameter value. This page ships no timezone database and never will, because a browser
+      timezone update would silently change the verdict on a fixed input. It therefore cannot generate the
+      VTIMEZONE component for you. The output below will report one MUST finding against itself until you paste a
+      VTIMEZONE block for this identifier into the object. UTC and floating modes have no such requirement.</p>
+    </div>
+
+    <div class="grid">
+      <div>
+        <label for="b-start">DTSTART</label>
+        <input type="datetime-local" id="b-start" value="2026-03-04T09:30">
+      </div>
+      <div>
+        <label for="b-endmode">End as</label>
+        <select id="b-endmode">
+          <option value="dtend" selected>DTEND</option>
+          <option value="duration">DURATION</option>
+          <option value="none">Neither</option>
+        </select>
+      </div>
+      <div>
+        <label for="b-end">DTEND</label>
+        <input type="datetime-local" id="b-end" value="2026-03-04T10:30">
+      </div>
+      <div>
+        <label for="b-duration">DURATION</label>
+        <input type="text" id="b-duration" value="PT1H" disabled>
+        <p class="hint">RFC 5545 dur-value, for example PT1H30M or P2D.</p>
+      </div>
+    </div>
+
+    <h3>RRULE (optional)</h3>
+    <p class="hint">RRULE is a recurrence rule, not a cron expression. FREQ is emitted first because RFC 5545
+    section 3.3.10 requires it to be the first rule part.</p>
+    <div class="grid">
+      <div>
+        <label for="b-freq">FREQ</label>
+        <select id="b-freq">
+          <option value="" selected>none</option>
+          <option>DAILY</option><option>WEEKLY</option><option>MONTHLY</option><option>YEARLY</option>
+          <option>HOURLY</option><option>MINUTELY</option><option>SECONDLY</option>
+        </select>
+      </div>
+      <div>
+        <label for="b-interval">INTERVAL</label>
+        <input type="number" id="b-interval" min="1" step="1" value="1">
+      </div>
+      <div>
+        <label for="b-limit">Limit by</label>
+        <select id="b-limit">
+          <option value="" selected>none</option>
+          <option value="count">COUNT</option>
+          <option value="until">UNTIL</option>
+        </select>
+        <p class="hint">COUNT and UNTIL must not both appear in one rule.</p>
+      </div>
+      <div>
+        <label for="b-limitval">Limit value</label>
+        <input type="text" id="b-limitval" value="10">
+        <p class="hint">A whole number for COUNT, or a UTC date-time for UNTIL.</p>
+      </div>
+      <div>
+        <label for="b-byday">BYDAY</label>
+        <input type="text" id="b-byday" value="" placeholder="MO,WE,FR">
+      </div>
+    </div>
+
+    <div class="row">
+      <button id="btn-build" type="button">Build .ics</button>
+      <button id="btn-copy" type="button">Copy output</button>
+      <button id="btn-download" type="button">Download .ics</button>
+    </div>
+    <p class="hint" id="copy-status" aria-live="polite"></p>
+
+    <div id="build-error" class="err-box" hidden>
+      <span class="tier">BUILD REFUSED</span>
+      <p class="f-detail" id="build-error-text"></p>
+    </div>
+
+    <h3>Output</h3>
+    <pre id="build-out" aria-label="Generated iCalendar object">Press Build .ics to generate an object.</pre>
+
+    <h3>The page checking its own output</h3>
+    <p class="hint">The bytes above are fed straight back through the validator on this page. This is the same
+    engine and the same checks, run in your browser, right now.</p>
+    <div id="build-verdict" class="verdict" aria-live="polite">Nothing built yet.</div>
+    <ul class="findings" id="build-findings"></ul>
+  </div>
+
+</section>
+
+<footer>
+  <p>Independent and unaffiliated with Google, Apple, Microsoft, the IETF and the RFC Editor. Behaviour is
+  reimplemented from the published specification, no code is reproduced here. Normative sentences shown with each
+  finding are quoted from RFC 5545, "Internet Calendaring and Scheduling Core Object Specification (iCalendar)",
+  September 2009.</p>
+  <p>MIT licensed. <a href="https://github.com/0xelitesystem/ics-calendar-builder-and-validator">Source</a> by
+  <a href="https://elitesystem.ai">0xelitesystem</a>.</p>
+</footer>
+</div>
+
+<script>
+(function(){
+"use strict";
+
+/* ------------------------------------------------------------------ *
+ * Normative sentences, transcribed from RFC 5545 (September 2009).
+ * Section numbers verified against the published text.
+ * ------------------------------------------------------------------ */
+var RFC = {
+  crlf: {sec:"3.1", q:"Content lines are delimited by a line break, which is a CRLF sequence (CR character followed by LF character)."},
+  contentline: {sec:"3.1", q:"contentline   = name *(\";\" param ) \":\" value CRLF"},
+  width: {sec:"3.1", q:"Lines of text SHOULD NOT be longer than 75 octets, excluding the line break."},
+  foldPractice: {sec:"5, item 1", q:"Content lines longer than 75 octets SHOULD be folded."},
+  unfoldNote: {sec:"3.1", q:"Note: It is possible for very simple implementations to generate improperly folded lines in the middle of a UTF-8 multi-octet sequence.  For this reason, implementations need to unfold lines in such a way to properly restore the original sequence."},
+  listSep: {sec:"3.1.1", q:"Some properties and parameters allow a list of values.  Values in a list of values MUST be separated by a COMMA character."},
+  icalobject: {sec:"3.4", q:"icalobject = \"BEGIN\" \":\" \"VCALENDAR\" CRLF icalbody \"END\" \":\" \"VCALENDAR\" CRLF"},
+  eventc: {sec:"3.6.1", q:"eventc     = \"BEGIN\" \":\" \"VEVENT\" CRLF eventprop *alarmc \"END\" \":\" \"VEVENT\" CRLF"},
+  tzid: {sec:"3.2.19", q:"An individual \"VTIMEZONE\" calendar component MUST be specified for each unique \"TZID\" parameter value specified in the iCalendar object."},
+  recurOnce: {sec:"3.3.10", q:"Individual rule parts MUST only be specified once."},
+  recurFirst: {sec:"3.3.10", q:"the FREQ rule part MUST be the first rule part specified in a RECUR value."},
+  recurFreq: {sec:"3.3.10", q:"The FREQ rule part identifies the type of recurrence rule.  This rule part MUST be specified in the recurrence rule."},
+  recurLimit: {sec:"3.3.10", abnf:true, q:"The UNTIL or COUNT rule parts are OPTIONAL, but they MUST NOT occur in the same 'recur'."},
+  textEscape: {sec:"3.3.11", q:"In order to support the inclusion of these special characters in \"TEXT\" property values, they MUST be escaped with a BACKSLASH character.  A BACKSLASH character in a \"TEXT\" property value MUST be escaped with another BACKSLASH character.  A COMMA character in a \"TEXT\" property value MUST be escaped with a BACKSLASH character.  A SEMICOLON character in a \"TEXT\" property value MUST be escaped with a BACKSLASH character."},
+  textColon: {sec:"3.3.11", q:"However, a COLON character in a \"TEXT\" property value SHALL NOT be escaped with a BACKSLASH character."},
+  eventRequired: {sec:"3.6.1", abnf:true, q:"The following are REQUIRED, but MUST NOT occur more than once. ... dtstamp / uid"},
+  eventDtstart: {sec:"3.6.1", abnf:true, q:"The following is REQUIRED if the component appears in an iCalendar object that doesn't specify the \"METHOD\" property; otherwise, it is OPTIONAL; in any case, it MUST NOT occur more than once. ... dtstart"},
+  eventEnd: {sec:"3.6.1", abnf:true, q:"Either 'dtend' or 'duration' MAY appear in a 'eventprop', but 'dtend' and 'duration' MUST NOT occur in the same 'eventprop'."},
+  dtendLater: {sec:"3.8.2.2", q:"Within the \"VEVENT\" calendar component, this property defines the date and time by which the event ends.  The value type of this property MUST be the same as the \"DTSTART\" property, and its value MUST be later in time than the value of the \"DTSTART\" property."},
+  charset: {sec:"6", q:"Applications MUST generate iCalendar streams in the UTF-8 charset and MUST accept an iCalendar stream in the UTF-8 or US-ASCII charset."},
+  prodid: {sec:"3.7.3", q:"The property MUST be specified once in an iCalendar object."},
+  version: {sec:"3.7.4", q:"This property MUST be specified once in an iCalendar object."}
+};
+
+var ENC = new TextEncoder();
+var DEC = new TextDecoder("utf-8");
+var DEC_FATAL = new TextDecoder("utf-8", {fatal:true});
+
+var MAX_BYTES = 12 * 1024 * 1024;   /* bounded: a hostile file must not hang the tab */
+var MAX_LINES = 400000;
+
+/* ------------------------------------------------------------------ *
+ * Byte-level structure
+ * ------------------------------------------------------------------ */
+/* Physical lines end at CRLF. A bare LF is accepted as a terminator too, and
+   is reported separately as a MUST finding on the file path. Splitting only on
+   CRLF would turn a whole LF-terminated file into one enormous line and refuse
+   it for the wrong reason, which is worse than reporting the real defect.
+   A textarea also normalises CRLF to LF before script can read it, so the
+   paste path never sees a CR at all. */
+function splitPhysical(bytes){
+  var lines = [], start = 0, i, end, n = bytes.length;
+  for(i = 0; i < n; i++){
+    if(bytes[i] === 0x0A){
+      end = (i > start && bytes[i-1] === 0x0D) ? i - 1 : i;
+      lines.push({no: lines.length + 1, off: start, b: bytes.subarray(start, end), terminated: true});
+      start = i + 1;
+      if(lines.length > MAX_LINES) throw new RangeError("line limit");
+    }
+  }
+  if(start < n) lines.push({no: lines.length + 1, off: start, b: bytes.subarray(start), terminated: false});
+  return lines;
+}
+
+function bareLFOffsets(bytes){
+  var out = [], i;
+  for(i = 0; i < bytes.length; i++){
+    if(bytes[i] === 0x0A && (i === 0 || bytes[i-1] !== 0x0D)){
+      out.push(i);
+      if(out.length >= 50) break;
+    }
+  }
+  return out;
+}
+
+function decodesStrictly(b){
+  try { DEC_FATAL.decode(b); return true; } catch(e){ return false; }
+}
+
+function unfold(phys){
+  var logical = [], i, p, first, L, total, buf, o, k;
+  for(i = 0; i < phys.length; i++){
+    p = phys[i];
+    first = p.b.length ? p.b[0] : -1;
+    if((first === 0x20 || first === 0x09) && logical.length){
+      L = logical[logical.length - 1];
+      L.parts.push(p.b.subarray(1));
+      L.phys.push(p.no);
+    } else {
+      logical.push({no: logical.length + 1, parts: [p.b], phys: [p.no]});
+    }
+  }
+  for(i = 0; i < logical.length; i++){
+    L = logical[i]; total = 0;
+    for(k = 0; k < L.parts.length; k++) total += L.parts[k].length;
+    buf = new Uint8Array(total); o = 0;
+    for(k = 0; k < L.parts.length; k++){ buf.set(L.parts[k], o); o += L.parts[k].length; }
+    L.bytes = buf;
+    L.text = DEC.decode(buf);
+    L.firstPhys = L.phys[0];
+  }
+  return logical;
+}
+
+/* contentline = name *(";" param ) ":" value CRLF  (RFC 5545 section 3.1) */
+function tokenize(s){
+  var i = 0, n = s.length, name, params = [], pn, pv, c;
+  while(i < n && s[i] !== ";" && s[i] !== ":") i++;
+  if(i >= n) return null;
+  name = s.slice(0, i);
+  if(!name.length) return null;
+  while(s[i] === ";"){
+    i++; pn = ""; pv = "";
+    while(i < n && s[i] !== "=" && s[i] !== ";" && s[i] !== ":"){ pn += s[i]; i++; }
+    if(s[i] === "="){
+      i++;
+      while(i < n){
+        c = s[i];
+        if(c === "\""){
+          i++;
+          while(i < n && s[i] !== "\""){ pv += s[i]; i++; }
+          i++;
+          continue;
+        }
+        if(c === ";" || c === ":") break;
+        pv += c; i++;
+      }
+    }
+    params.push({name: pn.toUpperCase(), value: pv});
+  }
+  if(s[i] !== ":") return null;
+  return {name: name.toUpperCase(), params: params, value: s.slice(i + 1)};
+}
+
+/* ------------------------------------------------------------------ *
+ * DATE and DATE-TIME values, for the one ordering check this page ships.
+ * No timezone database, no Intl offset lookup, no arithmetic. Two values
+ * are compared only when they sit in the same reference frame, so the
+ * comparison is a fixed-width string compare and the verdict on a fixed
+ * input can never change under the page's feet.
+ * ------------------------------------------------------------------ */
+function paramValue(t, name){
+  var i;
+  for(i = 0; i < t.params.length; i++) if(t.params[i].name === name) return t.params[i].value;
+  return null;
+}
+
+function parseStamp(t){
+  var raw = String(t.value || "").replace(/\s+$/, "");
+  var tzid = paramValue(t, "TZID");
+  var shape = null, frame = null, key = raw;
+  if(/^\d{8}$/.test(raw)) shape = "date";
+  else if(/^\d{8}T\d{6}$/.test(raw)) shape = "datetime";
+  else if(/^\d{8}T\d{6}Z$/.test(raw)){ shape = "datetime"; frame = "utc"; key = raw.slice(0, 15); }
+  if(!shape) return null;
+  if(frame === "utc"){
+    /* A TZID parameter on a UTC value is self-contradictory. Say nothing
+       rather than pick one reading of it. */
+    if(tzid) return null;
+  } else if(tzid){
+    frame = "tzid:" + tzid;
+  } else {
+    frame = "floating";
+  }
+  return {raw: raw, shape: shape, frame: frame, tzid: tzid, key: key};
+}
+
+function describeFrame(v){
+  if(v.frame === "utc") return "in UTC";
+  if(v.frame === "floating") return "floating local time";
+  return "in timezone " + v.tzid;
+}
+
+/* Returns null when the two are not the same value type, "incomparable" when
+   ordering them would need a timezone resolved, and otherwise the sign of
+   end minus start. */
+function compareStamps(start, end){
+  if(!start || !end) return null;
+  if(start.shape !== end.shape) return null;
+  if(start.frame !== end.frame) return "incomparable";
+  if(end.key === start.key) return 0;
+  return end.key > start.key ? 1 : -1;
+}
+
+/* ------------------------------------------------------------------ *
+ * TEXT-typed properties (RFC 5545 section 3.8). Comma is a value
+ * separator only in genuinely list-valued ones (section 3.1.1).
+ * ------------------------------------------------------------------ */
+var TEXT_SINGLE = ["SUMMARY","DESCRIPTION","LOCATION","COMMENT","CONTACT","RELATED-TO",
+                   "TZNAME","PRODID","CLASS","STATUS","TRANSP","METHOD","ACTION","UID"];
+var TEXT_LIST = ["CATEGORIES","RESOURCES"];
+function inList(a, v){ return a.indexOf(v) !== -1; }
+
+/* Walk left to right. On backslash, consume two characters. */
+function scanEscapes(value, commaIsSeparator){
+  var i = 0, bare = null, colon = false, c;
+  for(i = 0; i < value.length; i++){
+    c = value[i];
+    if(c === "\\"){
+      if(value[i+1] === ":") colon = true;
+      i++;
+      continue;
+    }
+    if(bare === null){
+      if(c === ";") bare = {ch: ";", at: i};
+      else if(c === "," && !commaIsSeparator) bare = {ch: ",", at: i};
+    }
+  }
+  return {bare: bare, escapedColon: colon};
+}
+
+function finding(tier, id, title, where, detail, rfc){
+  return {tier: tier, id: id, title: title, where: where, detail: detail, rfc: rfc};
+}
+
+/* ------------------------------------------------------------------ *
+ * The validator. Returns {refused, message, extra, findings, stats}
+ * ------------------------------------------------------------------ */
+/* Every check pushes through push1. Rendering one node per offending line is
+   what turns a large but legal input into a locked tab, so each check renders
+   at most PER_ID_CAP findings and the rest are counted, not built. The verdict
+   numbers are taken from counts, which is incremented for every detection
+   including the ones that were not rendered, so the headline figure is never a
+   rendering artifact. */
+var PER_ID_CAP = 400;
+
+function validate(bytes, opts){
+  opts = opts || {};
+  var exact = !!opts.exactOctets;
+  var F = [], stats = {};
+  var counts = {MUST: 0, SHOULD: 0, NOTE: 0};
+  var idSeen = {}, idHeld = {}, idModel = {};
+
+  function push1(f){
+    counts[f.tier]++;
+    var seen = Object.prototype.hasOwnProperty.call(idSeen, f.id) ? idSeen[f.id] : 0;
+    idSeen[f.id] = seen + 1;
+    if(seen < PER_ID_CAP){ F.push(f); return; }
+    idHeld[f.id] = (Object.prototype.hasOwnProperty.call(idHeld, f.id) ? idHeld[f.id] : 0) + 1;
+    idModel[f.id] = f;
+  }
+
+  function pushHeldSummaries(){
+    var key;
+    for(key in idHeld){
+      if(!Object.prototype.hasOwnProperty.call(idHeld, key)) continue;
+      var proto = idModel[key];
+      F.push(finding(proto.tier, key, "Further findings from the " + key + " check were not listed individually",
+        "whole file",
+        idHeld[key] + " further findings from this check were detected and are counted in the totals above. " +
+        "Only the first " + PER_ID_CAP + " are listed individually, to keep this report readable. The total " +
+        "for this check is " + idSeen[key] + ", and it is exact.",
+        proto.rfc));
+    }
+  }
+
+  if(!bytes || bytes.length === 0){
+    return {refused: true, refusal: "empty",
+            message: "Nothing to check. The input is empty (0 bytes)."};
+  }
+  if(bytes.length > MAX_BYTES){
+    return {refused: true, refusal: "too-big",
+            message: "Refused. The input is " + bytes.length + " bytes, over this page's " + MAX_BYTES +
+                     " byte limit. Split the file and check it in parts."};
+  }
+
+  var phys;
+  try { phys = splitPhysical(bytes); }
+  catch(e){
+    return {refused: true, refusal: "too-many-lines",
+            message: "Refused. The input has more than " + MAX_LINES + " physical lines."};
+  }
+
+  /* --- refusal 2: bytes that are largely undecodable as UTF-8 --- */
+  var badLines = [], i, p;
+  for(i = 0; i < phys.length; i++){
+    if(!decodesStrictly(phys[i].b)) badLines.push(phys[i]);
+  }
+  if(phys.length > 0 && badLines.length / phys.length > 0.05){
+    var offs = [];
+    for(i = 0; i < badLines.length && i < 3; i++){
+      offs.push("physical line " + badLines[i].no + ", byte offset " + badLines[i].off);
+    }
+    return {refused: true, refusal: "not-utf8",
+            message: "This file does not decode as UTF-8. RFC 5545 objects are UTF-8. If this is a legacy " +
+                     "export in another charset, convert it before checking.",
+            extra: "First offending positions:\n" + offs.join("\n")};
+  }
+
+  var logical = unfold(phys);
+
+  /* --- refusal 1: not an iCalendar object at all --- */
+  var sawBeginCal = false;
+  for(i = 0; i < logical.length; i++){
+    if(logical[i].text.replace(/\s+$/, "").toUpperCase() === "BEGIN:VCALENDAR"){ sawBeginCal = true; break; }
+  }
+  if(!sawBeginCal){
+    return {refused: true, refusal: "not-ical",
+            message: "This does not look like an iCalendar object. No BEGIN:VCALENDAR content line was found. " +
+                     "If you meant to check a fragment, wrap it in BEGIN:VCALENDAR and END:VCALENDAR first."};
+  }
+
+  /* ---------- Step 2: per physical line, before unfolding ---------- */
+  var over = 0, foldPoints = 0, wideFolds = 0, foldChars = -1, foldConsistent = true;
+  for(i = 0; i < phys.length; i++){
+    p = phys[i];
+    var chars = DEC.decode(p.b).length;
+
+    /* S1 line-width, SHOULD tier */
+    if(p.b.length > 75){
+      over++;
+      push1(finding("SHOULD", "line-width", "Physical line is longer than 75 octets",
+        "physical line " + p.no,
+        p.b.length + " octets, " + chars + " characters. The recommended width is first exceeded at " +
+        "column 76 of " + p.b.length + " octets. Folding this line would bring it inside the recommendation. " +
+        "The object still conforms.",
+        [RFC.width, RFC.foldPractice]));
+    }
+
+    /* N1 split-codepoint and the charset-not-utf8 MUST.
+       A fold inside a multi-octet sequence always leaves the broken bytes at a
+       fold boundary: the partial head sits at the end of a line whose successor
+       is a continuation line, and the partial tail sits inside a continuation
+       line. Bytes that fail a strict decode anywhere else are not a fold defect
+       at all, they are a file in some other charset, and saying "fold" there
+       names the wrong cause. */
+    if(!decodesStrictly(p.b)){
+      var isCont = p.b[0] === 0x20 || p.b[0] === 0x09;
+      var nextCont = (i + 1 < phys.length) && phys[i+1].b.length &&
+                     (phys[i+1].b[0] === 0x20 || phys[i+1].b[0] === 0x09);
+      if(isCont || nextCont){
+        push1(finding("NOTE", "split-codepoint", "Physical line is not standalone valid UTF-8",
+          "physical line " + p.no + ", byte offset " + p.off,
+          "This physical line's own bytes do not decode as strict UTF-8 at a fold boundary, which is the signature " +
+          "of a fold placed inside a multi-octet sequence. Conforming parsers are required to reconstruct this " +
+          "correctly, see the Note in RFC 5545 section 3.1.",
+          [RFC.unfoldNote]));
+      } else {
+        push1(finding("MUST", "charset-not-utf8", "Physical line is not UTF-8 and is not at a fold boundary",
+          "physical line " + p.no + ", byte offset " + p.off,
+          "This physical line's own bytes fail a strict UTF-8 decode, and neither this line nor the next one is " +
+          "a continuation line, so no fold could have split a character here. That is a file written in another " +
+          "charset. Convert it to UTF-8 before checking it. The bytes that did not decode were replaced with " +
+          "U+FFFD for every check below, so findings on this line may name the wrong character.",
+          [RFC.charset]));
+      }
+    }
+
+    /* fold-width signature accumulation. Only a fold point whose pre-fold line
+       actually carries non-ASCII text can tell a character count from an octet
+       count, so ASCII-only fold points are ignored rather than allowed to veto
+       the signature. */
+    if(i > 0 && p.b.length && (p.b[0] === 0x20 || p.b[0] === 0x09)){
+      foldPoints++;
+      var prev = phys[i-1].b;
+      var prevChars = DEC.decode(prev).length;
+      if(prev.length > prevChars){
+        wideFolds++;
+        if(foldChars === -1) foldChars = prevChars;
+        if(prevChars !== foldChars) foldConsistent = false;
+      }
+    }
+  }
+  stats.overWidth = over;
+  stats.physicalLines = phys.length;
+  stats.foldPoints = foldPoints;
+
+  /* N2 fold-width signature, at most once per file. The shared character count
+     has to BE a fold width before it is evidence of anything: a correct 75
+     octet folder cutting non-ASCII text also produces a repeated character
+     count, and it is nowhere near 75. */
+  if(wideFolds > 0 && foldConsistent && foldChars >= 74 && foldChars <= 76){
+    push1(finding("NOTE", "fold-width-signature", "Fold points cut at a character count, not an octet count",
+      "whole file",
+      "All " + wideFolds + " fold point" + (wideFolds === 1 ? "" : "s") + " in this file whose pre-fold line " +
+      "carries non-ASCII text cut at exactly " + foldChars + " characters, which is more than " + foldChars +
+      " octets. This generator folds by character count. On ASCII-only lines the two are identical, so the " +
+      "difference only shows on lines carrying non-ASCII text.",
+      [RFC.width]));
+  }
+
+  /* M14 bare LF. Exact only on the file path. */
+  if(exact){
+    var lf = bareLFOffsets(bytes);
+    if(lf.length){
+      push1(finding("MUST", "bare-lf", "Line break is a bare LF, not CRLF",
+        "byte offset " + lf[0] + (lf.length > 1 ? " and " + (lf.length - 1) + " more" : ""),
+        "The grammar terminates every content line with CRLF. " + lf.length + " line feed byte" +
+        (lf.length === 1 ? " is" : "s are") + " not preceded by a carriage return" +
+        (lf.length >= 50 ? " (counting stopped at 50)" : "") + ".",
+        [RFC.crlf, RFC.contentline]));
+    }
+    stats.bareLF = lf.length;
+  } else {
+    stats.bareLF = null;
+  }
+
+  /* ---------- Steps 4 and 5: tokenize and build the component tree ---------- */
+  var stack = [], structuralBad = false, truncated = false;
+  var calMethod = false, prodid = 0, version = 0, calDepth = 0;
+  /* Both maps are keyed by TZID text taken from the file. With a plain {} a
+     TZID of __proto__ replaced the map's prototype instead of adding a key, so
+     a missing VTIMEZONE for it was never reported. No prototype, no accessor. */
+  var tzidParams = Object.create(null), vtimezoneIds = Object.create(null);
+  var ev = null, events = 0;
+
+  function closeEvent(L){
+    if(!ev) return;
+    events++;
+    if(ev.uid === 0){
+      push1(finding("MUST", "vevent-uid", "VEVENT has no UID property",
+        "logical line " + ev.beginLog + " to " + L.no + " (physical line " + ev.beginPhys + ")",
+        "The event component beginning at physical line " + ev.beginPhys + " contains no UID property.",
+        [RFC.eventRequired]));
+    }
+    if(ev.uid > 1){
+      push1(finding("MUST", "vevent-uid-repeat", "UID occurs more than once in one VEVENT",
+        "logical line " + ev.beginLog + " to " + L.no + " (physical line " + ev.beginPhys + ")",
+        "UID appears " + ev.uid + " times in this event component.", [RFC.eventRequired]));
+    }
+    if(ev.dtstamp === 0){
+      push1(finding("MUST", "vevent-dtstamp", "VEVENT has no DTSTAMP property",
+        "logical line " + ev.beginLog + " to " + L.no + " (physical line " + ev.beginPhys + ")",
+        "The event component beginning at physical line " + ev.beginPhys + " contains no DTSTAMP property.",
+        [RFC.eventRequired]));
+    }
+    if(ev.dtstamp > 1){
+      push1(finding("MUST", "vevent-dtstamp-repeat", "DTSTAMP occurs more than once in one VEVENT",
+        "logical line " + ev.beginLog + " to " + L.no + " (physical line " + ev.beginPhys + ")",
+        "DTSTAMP appears " + ev.dtstamp + " times in this event component.", [RFC.eventRequired]));
+    }
+    if(ev.dtstart === 0 && !calMethod){
+      push1(finding("MUST", "vevent-dtstart", "VEVENT has no DTSTART and the calendar has no METHOD",
+        "logical line " + ev.beginLog + " to " + L.no + " (physical line " + ev.beginPhys + ")",
+        "DTSTART is required when the enclosing iCalendar object specifies no METHOD property. No METHOD was " +
+        "found in this object.", [RFC.eventDtstart]));
+    }
+    if(ev.dtstart > 1){
+      push1(finding("MUST", "vevent-dtstart-repeat", "DTSTART occurs more than once in one VEVENT",
+        "logical line " + ev.beginLog + " to " + L.no + " (physical line " + ev.beginPhys + ")",
+        "DTSTART appears " + ev.dtstart + " times in this event component.", [RFC.eventDtstart]));
+    }
+    if(ev.dtend > 0 && ev.duration > 0){
+      push1(finding("MUST", "vevent-end-both", "DTEND and DURATION both appear in one VEVENT",
+        "logical line " + ev.beginLog + " to " + L.no + " (physical line " + ev.beginPhys + ")",
+        "This event component carries DTEND and DURATION together. Exactly one of them may appear.",
+        [RFC.eventEnd]));
+    }
+    if(ev.startVal && ev.endVal){
+      var ord = compareStamps(ev.startVal, ev.endVal);
+      if(ord === "incomparable"){
+        push1(finding("NOTE", "dtend-not-comparable", "DTSTART and DTEND are not comparable without resolving a timezone",
+          "logical line " + ev.beginLog + " to " + L.no + " (physical line " + ev.beginPhys + ")",
+          "DTSTART is " + describeFrame(ev.startVal) + " and DTEND is " + describeFrame(ev.endVal) + ". Ordering " +
+          "them would need a timezone database to turn both into instants. This page ships none and never will, " +
+          "because a browser timezone update would silently change the verdict on a fixed input. The comparison " +
+          "stops here rather than guessing.",
+          [RFC.dtendLater]));
+      } else if(ord !== null && ord <= 0){
+        push1(finding("MUST", "vevent-dtend-not-later", "DTEND is not later in time than DTSTART",
+          "logical line " + ev.beginLog + " to " + L.no + " (physical line " + ev.beginPhys + ")",
+          "DTSTART is " + ev.startVal.raw + " and DTEND is " + ev.endVal.raw + ". Both are " +
+          describeFrame(ev.startVal) + ", so they are directly comparable with no timezone database, and DTEND " +
+          (ord === 0 ? "is the same instant as" : "is earlier than") + " DTSTART.",
+          [RFC.dtendLater]));
+      }
+    }
+    ev = null;
+  }
+
+  /* METHOD is a calendar-level property; find it before judging DTSTART. Only a
+     METHOD whose DIRECT parent is VCALENDAR counts. A flat scan let a METHOD
+     misplaced inside a VEVENT, where section 3.6.1 does not allow one, switch
+     the missing-DTSTART requirement off for every event in the object. */
+  var preStack = [];
+  for(i = 0; i < logical.length; i++){
+    var t0 = tokenize(logical[i].text);
+    if(!t0) continue;
+    if(t0.name === "BEGIN"){ preStack.push(t0.value.toUpperCase()); continue; }
+    if(t0.name === "END"){ if(preStack.length) preStack.pop(); continue; }
+    if(t0.name === "METHOD" && preStack.length && preStack[preStack.length-1] === "VCALENDAR"){
+      calMethod = true; break;
+    }
+  }
+
+  for(i = 0; i < logical.length; i++){
+    var L = logical[i];
+    var t = tokenize(L.text);
+    if(!t){
+      if(L.text.replace(/\s+/g, "").length){
+        push1(finding("MUST", "contentline", "Line is not a content line",
+          "logical line " + L.no + " (physical line " + L.firstPhys + ")",
+          "No unquoted COLON was found, so this line has no property value. The grammar requires a name, " +
+          "optional parameters, a COLON and a value.", [RFC.contentline]));
+      }
+      continue;
+    }
+    var up = t.value.toUpperCase();
+
+    if(t.name === "BEGIN"){
+      stack.push({name: up, log: L.no, phys: L.firstPhys, isEvent: up === "VEVENT"});
+      if(up === "VCALENDAR") calDepth++;
+      if(up === "VEVENT"){
+        if(ev){
+          push1(finding("MUST", "nested-vevent", "VEVENT nested inside another VEVENT",
+            "logical line " + L.no + " (physical line " + L.firstPhys + ")",
+            "An event component may not contain another event component.", [RFC.eventc]));
+        }
+        ev = {uid:0, dtstamp:0, dtstart:0, dtend:0, duration:0, beginLog: L.no, beginPhys: L.firstPhys};
+      }
+      continue;
+    }
+    if(t.name === "END"){
+      if(!stack.length){
+        structuralBad = true;
+        push1(finding("MUST", "end-unmatched", "END with no matching BEGIN",
+          "logical line " + L.no + " (physical line " + L.firstPhys + ")",
+          "END:" + t.value + " closes a component that was never opened.", [RFC.icalobject]));
+        continue;
+      }
+      var top = stack.pop();
+      if(top.name !== up){
+        structuralBad = true;
+        push1(finding("MUST", "end-mismatch", "END name does not match the open BEGIN",
+          "logical line " + L.no + " (physical line " + L.firstPhys + ")",
+          "BEGIN:" + top.name + " at physical line " + top.phys + " is closed by END:" + t.value + ".",
+          [RFC.icalobject]));
+      }
+      /* Close the event when the frame that OPENED it is popped, whatever name
+         the END line carries. Keying this off the END name instead left an
+         event open after a mismatched END, and the next sibling VEVENT was then
+         reported as nested inside it. */
+      if(top.isEvent) closeEvent(L);
+      continue;
+    }
+
+    /* TZID parameter usage, and VTIMEZONE identifiers */
+    var k;
+    for(k = 0; k < t.params.length; k++){
+      if(t.params[k].name === "TZID" && t.params[k].value){
+        if(!Object.prototype.hasOwnProperty.call(tzidParams, t.params[k].value)){
+          tzidParams[t.params[k].value] = {log: L.no, phys: L.firstPhys, prop: t.name};
+        }
+      }
+    }
+    var inTZ = stack.length && stack[stack.length-1].name === "VTIMEZONE";
+    if(t.name === "TZID" && inTZ) vtimezoneIds[t.value] = true;
+
+    if(t.name === "PRODID") prodid++;
+    if(t.name === "VERSION") version++;
+
+    /* Only properties whose DIRECT parent is the VEVENT are eventprop. A VALARM
+       inside the event has its own DURATION, REPEAT and, per RFC 9074, its own
+       UID; counting those as the event's turns a conforming alarm into a false
+       MUST and lets an alarm's UID stand in for the event's missing one. */
+    var cur = stack.length ? stack[stack.length-1] : null;
+    if(ev && cur && cur.isEvent){
+      if(t.name === "UID") ev.uid++;
+      if(t.name === "DTSTAMP") ev.dtstamp++;
+      if(t.name === "DTSTART"){ ev.dtstart++; if(!ev.startVal) ev.startVal = parseStamp(t); }
+      if(t.name === "DTEND"){ ev.dtend++; if(!ev.endVal) ev.endVal = parseStamp(t); }
+      if(t.name === "DURATION") ev.duration++;
+    }
+
+    /* M6 to M9: RRULE rule parts */
+    if(t.name === "RRULE"){
+      var parts = t.value.split(";"), seen = {}, order = [], j, nm;
+      for(j = 0; j < parts.length; j++){
+        if(!parts[j].length) continue;
+        nm = parts[j].split("=")[0].toUpperCase();
+        order.push(nm);
+        if(seen[nm]){
+          push1(finding("MUST", "rrule-repeat", "RRULE rule part specified more than once",
+            "logical line " + L.no + " (physical line " + L.firstPhys + "), RRULE",
+            "The rule part " + nm + " appears more than once in this recurrence rule.", [RFC.recurOnce]));
+        }
+        seen[nm] = true;
+      }
+      if(!seen.FREQ){
+        push1(finding("MUST", "rrule-freq-missing", "RRULE has no FREQ rule part",
+          "logical line " + L.no + " (physical line " + L.firstPhys + "), RRULE",
+          "This recurrence rule specifies no FREQ.", [RFC.recurFreq]));
+      } else if(order[0] !== "FREQ"){
+        push1(finding("MUST", "rrule-freq-not-first", "FREQ is not the first RRULE rule part",
+          "logical line " + L.no + " (physical line " + L.firstPhys + "), RRULE",
+          "The first rule part in this value is " + order[0] + ". FREQ has to come first.", [RFC.recurFirst]));
+      }
+      if(seen.COUNT && seen.UNTIL){
+        push1(finding("MUST", "rrule-count-until", "RRULE carries both COUNT and UNTIL",
+          "logical line " + L.no + " (physical line " + L.firstPhys + "), RRULE",
+          "COUNT and UNTIL both appear in this recurrence rule. At most one may.", [RFC.recurLimit]));
+      }
+    }
+
+    /* M10: TEXT escaping */
+    var isSingle = inList(TEXT_SINGLE, t.name);
+    var isListy = inList(TEXT_LIST, t.name);
+    if(isSingle || isListy){
+      var sc = scanEscapes(t.value, isListy);
+      if(sc.bare){
+        push1(finding("MUST", "text-unescaped", "Unescaped " +
+          (sc.bare.ch === "," ? "COMMA" : "SEMICOLON") + " in a TEXT property value",
+          "logical line " + L.no + " (physical line " + L.firstPhys + "), " + t.name,
+          "Character " + (sc.bare.at + 1) + " of the value is a bare " +
+          (sc.bare.ch === "," ? "COMMA" : "SEMICOLON") + ". In a TEXT value it has to be written as \\" +
+          sc.bare.ch + "." + (isListy
+            ? " This property is list-valued, so a COMMA in it is a value separator and is not reported."
+            : " This property is not list-valued, so COMMA is not a separator here."),
+          isListy ? [RFC.textEscape, RFC.listSep] : [RFC.textEscape]));
+      }
+      if(sc.escapedColon){
+        push1(finding("MUST", "text-escaped-colon", "Escaped COLON in a TEXT property value",
+          "logical line " + L.no + " (physical line " + L.firstPhys + "), " + t.name,
+          "The value contains the two-character sequence backslash COLON. A COLON in a TEXT value is written " +
+          "plainly.", [RFC.textColon]));
+      }
+    }
+  }
+
+  if(ev) closeEvent({no: logical.length});
+  stats.events = events;
+
+  /* M12: PRODID and VERSION exactly once */
+  if(calDepth > 0){
+    if(prodid === 0){
+      push1(finding("MUST", "prodid-missing", "VCALENDAR has no PRODID property", "whole object",
+        "No PRODID content line was found in this object.", [RFC.prodid]));
+    } else if(prodid > 1){
+      push1(finding("MUST", "prodid-repeat", "PRODID appears more than once", "whole object",
+        "PRODID appears " + prodid + " times.", [RFC.prodid]));
+    }
+    if(version === 0){
+      push1(finding("MUST", "version-missing", "VCALENDAR has no VERSION property", "whole object",
+        "No VERSION content line was found in this object.", [RFC.version]));
+    } else if(version > 1){
+      push1(finding("MUST", "version-repeat", "VERSION appears more than once", "whole object",
+        "VERSION appears " + version + " times.", [RFC.version]));
+    }
+  }
+
+  /* M11: every TZID parameter value needs a VTIMEZONE in the same object */
+  var idk;
+  for(idk in tzidParams){
+    if(!Object.prototype.hasOwnProperty.call(tzidParams, idk)) continue;
+    if(!Object.prototype.hasOwnProperty.call(vtimezoneIds, idk)){
+      var w = tzidParams[idk];
+      push1(finding("MUST", "tzid-no-vtimezone", "TZID parameter has no matching VTIMEZONE component",
+        "logical line " + w.log + " (physical line " + w.phys + "), " + w.prop,
+        "The TZID parameter value \"" + idk + "\" is used, but this object contains no VTIMEZONE component " +
+        "whose TZID property equals it. This is checked inside the file only. No timezone database is " +
+        "consulted, and none ships with this page.", [RFC.tzid]));
+    }
+  }
+
+  /* structural: anything still open at EOF */
+  if(stack.length){
+    /* The report's lead line says BEGIN:VCALENDAR has no matching END, so it is
+       raised only when a VCALENDAR frame is in fact still open. A stray
+       component left open after END:VCALENDAR is reported below without it. */
+    var sk;
+    for(sk = 0; sk < stack.length; sk++) if(stack[sk].name === "VCALENDAR") truncated = true;
+    var st = stack[stack.length - 1];
+    push1(finding("MUST", "begin-unclosed", "BEGIN with no matching END at end of input",
+      "logical line " + st.log + " (physical line " + st.phys + ")",
+      "BEGIN:" + st.name + " is never closed. " + stack.length + " component" +
+      (stack.length === 1 ? " is" : "s are") + " still open at the end of the input.", [RFC.icalobject]));
+  }
+
+  pushHeldSummaries();
+
+  return {refused: false, findings: F, counts: counts, stats: stats, truncated: truncated,
+          structuralBad: structuralBad, exactOctets: exact};
+}
+
+/* ------------------------------------------------------------------ *
+ * Builder
+ * ------------------------------------------------------------------ */
+function escapeText(s){
+  return String(s)
+    .replace(/\\/g, "\\\\")
+    .replace(/;/g, "\\;")
+    .replace(/,/g, "\\,")
+    .replace(/\r\n|\r|\n/g, "\\n");
+}
+
+/* Fold at 75 octets over the UTF-8 encoding, never inside a sequence.
+   A continuation line begins with SPACE, which counts toward its 75. */
+function foldLine(str){
+  var bytes = ENC.encode(str), out = [], i = 0, first = true, budget, end;
+  if(bytes.length === 0) return "";
+  while(i < bytes.length){
+    budget = first ? 75 : 74;
+    end = Math.min(i + budget, bytes.length);
+    if(end < bytes.length){
+      while(end > i && (bytes[end] & 0xC0) === 0x80) end--;
+    }
+    if(end <= i) end = Math.min(i + budget, bytes.length);  /* never stall */
+    out.push((first ? "" : " ") + DEC.decode(bytes.subarray(i, end)));
+    i = end; first = false;
+  }
+  return out.join("\r\n");
+}
+
+function pad2(n){ return (n < 10 ? "0" : "") + n; }
+
+function stampUTC(d){
+  return d.getUTCFullYear() + pad2(d.getUTCMonth()+1) + pad2(d.getUTCDate()) + "T" +
+         pad2(d.getUTCHours()) + pad2(d.getUTCMinutes()) + pad2(d.getUTCSeconds()) + "Z";
+}
+
+/* "2026-03-04T09:30" from a datetime-local input, to RFC 5545 form.
+   Digit shape is not enough. A browser that degrades input[type=datetime-local]
+   to a plain text field hands over whatever was typed, so every field is range
+   checked against the ABNF in sections 3.3.4 and 3.3.12 before anything is
+   emitted: month 01 to 12, mday 01 to the last day of that month in that year
+   (the ABNF reads "01-28, 01-29, 01-30, 01-31 based on month/year", so 30
+   February is refused), hour 00 to 23, minute 00 to 59. Second is held to 00
+   to 59, which is narrower than the ABNF's 00 to 60 leap second on purpose. */
+function localToIcal(v, mode){
+  var m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?$/.exec(String(v || "").trim());
+  if(!m) return null;
+  var yr = +m[1], mo = +m[2], da = +m[3], hh = +m[4], mi = +m[5], ss = +(m[6] || "00");
+  if(mo < 1 || mo > 12) return null;
+  var leap = (yr % 4 === 0 && yr % 100 !== 0) || yr % 400 === 0;
+  var mdays = [31, leap ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31][mo - 1];
+  if(da < 1 || da > mdays) return null;
+  if(hh > 23 || mi > 59 || ss > 59) return null;
+  var basic = m[1] + m[2] + m[3] + "T" + m[4] + m[5] + (m[6] || "00");
+  if(mode === "utc") return basic + "Z";
+  return basic;   /* floating, and the TZID form which carries its own parameter */
+}
+
+function newUID(){
+  var id;
+  if(window.crypto && typeof window.crypto.randomUUID === "function"){
+    id = window.crypto.randomUUID();
+  } else if(window.crypto && window.crypto.getRandomValues){
+    var a = new Uint8Array(16), s = "", j;
+    window.crypto.getRandomValues(a);
+    a[6] = (a[6] & 0x0f) | 0x40; a[8] = (a[8] & 0x3f) | 0x80;
+    for(j = 0; j < 16; j++){
+      s += (a[j] < 16 ? "0" : "") + a[j].toString(16);
+      if(j === 3 || j === 5 || j === 7 || j === 9) s += "-";
+    }
+    id = s;
+  } else {
+    return null;
+  }
+  return id + "@" + "ics-calendar-builder-and-validator.example";
+}
+
+function buildEvent(cfg){
+  var lines = [], uid = newUID(), errs = [];
+  if(!uid) errs.push("This browser exposes no cryptographic random source, so no UID can be generated.");
+
+  var start = localToIcal(cfg.start, cfg.timeMode);
+  if(!start){
+    errs.push("DTSTART is empty, is not a date and time, or has a field outside its range. " +
+              "Month is 01 to 12, day 01 to the last day of that month in that year, hour 00 to 23, " +
+              "minute and second 00 to 59.");
+  }
+
+  /* SAFE-CHAR, RFC 5545 section 3.1: WSP / %x21 / %x23-2B / %x2D-39 / %x3C-7E /
+     NON-US-ASCII, which is every character except CONTROL, DQUOTE, ";", ":" and
+     ",". An unquoted parameter value carrying any of the four is ungrammatical,
+     and SEMICOLON in particular smuggles a whole extra parameter onto the line. */
+  if(cfg.timeMode === "tzid" && !/^[\x09\x20\x21\x23-\x2b\x2d-\x39\x3c-\x7e\u0080-\uffff]+$/.test(cfg.tzid || "")){
+    errs.push("TZID mode is selected but the TZID value is empty or carries a character that RFC 5545 section " +
+              "3.1 excludes from an unquoted parameter value: a control character, a DQUOTE, a SEMICOLON, a " +
+              "COLON or a COMMA.");
+  }
+
+  /* TSAFE-CHAR, RFC 5545 section 3.3.11, admits WSP but no other CONTROL, and
+     ESCAPED-CHAR has an escape only for BACKSLASH, SEMICOLON, COMMA and newline.
+     A line break is escaped to \n by escapeText; any other control character
+     has no legal spelling in a TEXT value, so it is refused, not emitted raw. */
+  var TEXT_CTL = /[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/;
+  if(TEXT_CTL.test(String(cfg.summary || "")) || TEXT_CTL.test(String(cfg.description || "")) ||
+     TEXT_CTL.test(String(cfg.location || ""))){
+    errs.push("SUMMARY, DESCRIPTION or LOCATION carries a control character other than TAB or a line break. " +
+              "RFC 5545 section 3.3.11 leaves control characters out of a TEXT value and gives them no escape.");
+  }
+  var end = null;
+  if(cfg.endMode === "dtend"){
+    end = localToIcal(cfg.end, cfg.timeMode);
+    if(!end){
+      errs.push("DTEND is empty, is not a date and time, or has a field outside its range. " +
+                "Month is 01 to 12, day 01 to the last day of that month in that year, hour 00 to 23, " +
+              "minute and second 00 to 59.");
+    } else if(start && end <= start){
+      /* Both sides come from the same time mode, so they sit in the same
+         reference frame and this is a fixed-width string compare, never
+         timezone arithmetic. RFC 5545 section 3.8.2.2. */
+      errs.push("DTEND has to be later in time than DTSTART. RFC 5545 section 3.8.2.2 requires it, and this page " +
+                "will not emit an object it would then report against itself.");
+    }
+  } else if(cfg.endMode === "duration"){
+    /* dur-value, RFC 5545 section 3.3.6. Every branch requires at least one
+       component, so a bare "P" and a bare "PT" are both ungrammatical. */
+    if(!/^[+-]?P(?:\d+W|\d+D(?:T(?:\d+H(?:\d+M(?:\d+S)?)?|\d+M(?:\d+S)?|\d+S))?|T(?:\d+H(?:\d+M(?:\d+S)?)?|\d+M(?:\d+S)?|\d+S))$/.test(cfg.duration || "")){
+      errs.push("DURATION is not an RFC 5545 dur-value, for example PT1H30M, P2D or P1W. " +
+                "Every part that is present has to carry a number, so P, PT and P1DT are all refused.");
+    } else if(String(cfg.duration).charAt(0) === "-" || !/[1-9]/.test(String(cfg.duration))){
+      /* dur-value admits a minus sign and all-zero parts, but the DURATION
+         property is narrower: section 3.8.2.5 says it "specifies a positive
+         duration of time". A negative or zero event length is refused, the
+         same way a DTEND at or before DTSTART is. */
+      errs.push("DURATION has to be a positive length of time. RFC 5545 section 3.8.2.5 defines the DURATION " +
+                "property as a positive duration, so a negative value such as -PT1H or a zero value such as " +
+                "PT0S is refused.");
+    }
+  }
+  var rrule = "";
+  if(cfg.freq){
+    var rp = ["FREQ=" + cfg.freq];
+    /* POSNUM, not "a run of digits that is not the single character zero".
+       "0" was refused and "0000" was not, which is the same number. */
+    var POSNUM = /^[1-9]\d*$/;
+    if(cfg.interval && String(cfg.interval) !== "1"){
+      if(!POSNUM.test(String(cfg.interval))){
+        errs.push("INTERVAL has to be a positive whole number written without leading zeros.");
+      } else rp.push("INTERVAL=" + cfg.interval);
+    }
+    if(cfg.limit === "count"){
+      if(!POSNUM.test(String(cfg.limitVal || ""))){
+        errs.push("COUNT has to be a positive whole number written without leading zeros. " +
+                  "DTSTART itself counts as the first occurrence, so zero occurrences is not a rule.");
+      } else rp.push("COUNT=" + cfg.limitVal);
+    } else if(cfg.limit === "until"){
+      /* Shape alone let 20261399T999999Z through. Every field is put through
+         the same range check as DTSTART, and the result has to reproduce the
+         input exactly. */
+      var uv = String(cfg.limitVal || "");
+      if(!/^\d{8}T\d{6}Z$/.test(uv) ||
+         localToIcal(uv.slice(0, 4) + "-" + uv.slice(4, 6) + "-" + uv.slice(6, 8) + "T" + uv.slice(9, 11) + ":" +
+                     uv.slice(11, 13) + ":" + uv.slice(13, 15), "utc") !== uv){
+        errs.push("UNTIL has to be a UTC date-time in the form 20261231T235959Z, with the month, day, hour, " +
+                  "minute and second each inside its range.");
+      } else rp.push("UNTIL=" + cfg.limitVal);
+    }
+    if(cfg.byday){
+      /* weekdaynum = [[plus / minus] ordwk] weekday, and ordwk is 1*2DIGIT
+         reading 1 to 53 (RFC 5545 section 3.3.10 ABNF). Matching the digit
+         COUNT rather than the value let 0MO and 99MO through. The failing part
+         is held as null, not as "", so an empty element (MO, or MO,,FR) is
+         caught rather than read as no failure at all. */
+      var days = String(cfg.byday).split(","), bad = null, bi, bm, ord, ordinal = false;
+      for(bi = 0; bi < days.length; bi++){
+        bm = /^([+-]?)(\d{1,2})?(MO|TU|WE|TH|FR|SA|SU)$/.exec(days[bi]);
+        if(!bm){ bad = days[bi]; break; }
+        if(bm[2] !== undefined){
+          ord = parseInt(bm[2], 10);
+          if(ord < 1 || ord > 53){ bad = days[bi]; break; }
+          ordinal = true;
+        } else if(bm[1]){ bad = days[bi]; break; }
+      }
+      if(bad !== null){
+        errs.push("BYDAY has to be a comma separated list of weekday codes, each optionally preceded by an " +
+                  "ordinal from 1 to 53 or -1 to -53, for example MO,WE,FR or -1SU. The part that failed is \"" +
+                  bad + "\"" + (bad === "" ? ", an empty entry." : "."));
+      } else if(ordinal && cfg.freq !== "MONTHLY" && cfg.freq !== "YEARLY"){
+        /* RFC 5545 section 3.3.10: "The BYDAY rule part MUST NOT be specified
+           with a numeric value when the FREQ rule part is not set to MONTHLY
+           or YEARLY." This form has no BYWEEKNO field, so the YEARLY clause
+           that follows it cannot arise here. */
+        errs.push("BYDAY carries an ordinal, such as 1MO or -1SU, and FREQ is " + cfg.freq + ". RFC 5545 section " +
+                  "3.3.10 allows a numbered weekday only when FREQ is MONTHLY or YEARLY.");
+      } else rp.push("BYDAY=" + cfg.byday);
+    }
+    rrule = rp.join(";");
+  }
+
+  if(errs.length) return {error: errs.join(" ")};
+
+  var tzParam = cfg.timeMode === "tzid" ? ";TZID=" + cfg.tzid : "";
+
+  lines.push("BEGIN:VCALENDAR");
+  lines.push("VERSION:2.0");
+  lines.push("PRODID:-//0xelitesystem//ICS Calendar Builder and Validator//EN");
+  lines.push("CALSCALE:GREGORIAN");
+  lines.push("BEGIN:VEVENT");
+  lines.push("UID:" + uid);
+  lines.push("DTSTAMP:" + stampUTC(new Date()));
+  lines.push("DTSTART" + tzParam + ":" + start);
+  if(cfg.endMode === "dtend") lines.push("DTEND" + tzParam + ":" + end);
+  else if(cfg.endMode === "duration") lines.push("DURATION:" + cfg.duration);
+  if(cfg.summary) lines.push("SUMMARY:" + escapeText(cfg.summary));
+  if(cfg.description) lines.push("DESCRIPTION:" + escapeText(cfg.description));
+  if(cfg.location) lines.push("LOCATION:" + escapeText(cfg.location));
+  if(rrule) lines.push("RRULE:" + rrule);
+  lines.push("END:VEVENT");
+  lines.push("END:VCALENDAR");
+
+  var folded = [], i;
+  for(i = 0; i < lines.length; i++) folded.push(foldLine(lines[i]));
+  return {text: folded.join("\r\n") + "\r\n"};
+}
+
+/* ------------------------------------------------------------------ *
+ * Fixtures. Every check ships one input that must trip it.
+ * ------------------------------------------------------------------ */
+var CLEAN =
+  "BEGIN:VCALENDAR\r\n" +
+  "VERSION:2.0\r\n" +
+  "PRODID:-//Example Corp//Example Calendar//EN\r\n" +
+  "BEGIN:VEVENT\r\n" +
+  "UID:clean-1@example.com\r\n" +
+  "DTSTAMP:20260101T000000Z\r\n" +
+  "DTSTART:20260304T093000Z\r\n" +
+  "DTEND:20260304T103000Z\r\n" +
+  "SUMMARY:Design review\\, phase 2\\; room B\r\n" +
+  "CATEGORIES:work,review\r\n" +
+  "RRULE:FREQ=WEEKLY;INTERVAL=2;COUNT=10\r\n" +
+  "END:VEVENT\r\n" +
+  "END:VCALENDAR\r\n";
+
+function wrapEvent(body){
+  return "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//Example Corp//Example Calendar//EN\r\n" +
+         "BEGIN:VEVENT\r\n" + body + "END:VEVENT\r\nEND:VCALENDAR\r\n";
+}
+var BASE = "UID:f1@example.com\r\nDTSTAMP:20260101T000000Z\r\nDTSTART:20260304T093000Z\r\n";
+
+/* line-width control: exactly 77 octets and 75 characters.
+   "SUMMARY:" is 8 ASCII octets. 65 ASCII letters plus two 2-octet characters
+   gives 8 + 65 + 2 = 75 characters and 8 + 65 + 4 = 77 octets. */
+function widthControlLine(){
+  var body = "";
+  var i;
+  for(i = 0; i < 65; i++) body += "a";
+  return "SUMMARY:" + body + "éé";   /* two 2-octet characters */
+}
+
+/* split-codepoint control: hand-built by cutting a 3-octet sequence in half.
+   No real generator output examined here produces one, so this fixture is
+   constructed, not observed. It carries 50 well-formed filler lines because a
+   file where a large share of lines fail to decode is a charset problem, not a
+   fold problem, and this page refuses that case separately. */
+function splitControlBytes(){
+  var filler = "", i;
+  for(i = 0; i < 50; i++) filler += "COMMENT:filler line " + i + "\r\n";
+  var head = ENC.encode("BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//Example Corp//X//EN\r\n" +
+                        "BEGIN:VEVENT\r\nUID:f1@example.com\r\nDTSTAMP:20260101T000000Z\r\n" +
+                        "DTSTART:20260304T093000Z\r\n" + filler + "SUMMARY:x");
+  var euro = ENC.encode("€");                        /* 3 octets: E2 82 AC */
+  var mid = ENC.encode("\r\n ");                          /* fold, mid sequence */
+  var tail = ENC.encode("y\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n");
+  var parts = [head, euro.subarray(0, 2), mid, euro.subarray(2), tail];
+  var total = 0, o = 0;
+  for(i = 0; i < parts.length; i++) total += parts[i].length;
+  var out = new Uint8Array(total);
+  for(i = 0; i < parts.length; i++){ out.set(parts[i], o); o += parts[i].length; }
+  return out;
+}
+
+/* charset control: one line of Latin-1 bytes that is NOT at a fold boundary.
+   Neither it nor its successor is a continuation line, so no fold could have
+   split a character here and the cause is the file's charset, not its folding.
+   30 well-formed filler lines keep the file under the 5 percent share at which
+   the whole input is refused as undecodable. */
+function charsetControlBytes(){
+  var head = ENC.encode("BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//Example Corp//X//EN\r\n" +
+                        "BEGIN:VEVENT\r\nUID:f1@example.com\r\nDTSTAMP:20260101T000000Z\r\n" +
+                        "DTSTART:20260304T093000Z\r\n");
+  var filler = "", i;
+  for(i = 0; i < 30; i++) filler += "COMMENT:filler line " + i + "\r\n";
+  var mid = ENC.encode(filler + "SUMMARY:Caf");
+  var latin1 = new Uint8Array([0xE9]);                   /* e-acute in Latin-1, illegal alone in UTF-8 */
+  var tail = ENC.encode("\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n");
+  var parts = [head, mid, latin1, tail], total = 0, o = 0;
+  for(i = 0; i < parts.length; i++) total += parts[i].length;
+  var out = new Uint8Array(total);
+  for(i = 0; i < parts.length; i++){ out.set(parts[i], o); o += parts[i].length; }
+  return out;
+}
+
+/* negative control for the fold-width signature: a file folded CORRECTLY at 75
+   octets over non-ASCII text. The pre-fold lines share a character count too,
+   which is exactly what the first version of this check mistook for evidence,
+   so the shared count has to BE a fold width before it means anything. */
+function octetFoldedFixture(){
+  var pre = "COMMENT:", i;
+  for(i = 0; i < 33; i++) pre += "é";              /* 74 octets, 41 characters */
+  return wrapEvent(BASE + pre + "\r\n more text\r\n" + pre + "\r\n more text\r\n");
+}
+
+/* fold-width signature control: an unfolded line of 77 octets / 75 chars,
+   folded by its generator at exactly 75 CHARACTERS. */
+function foldSignatureFixture(){
+  var line = widthControlLine();          /* 75 characters, 77 octets */
+  var head = line;                        /* the whole line is the pre-fold part */
+  return wrapEvent(BASE + head + "\r\n more text here\r\n");
+}
+
+var FIXTURES = [
+  {id:"vevent-uid", tier:"MUST", label:"VEVENT with no UID",
+   bytes:function(){ return ENC.encode(wrapEvent("DTSTAMP:20260101T000000Z\r\nDTSTART:20260304T093000Z\r\n")); }},
+  {id:"vevent-dtstamp", tier:"MUST", label:"VEVENT with no DTSTAMP",
+   bytes:function(){ return ENC.encode(wrapEvent("UID:f1@example.com\r\nDTSTART:20260304T093000Z\r\n")); }},
+  {id:"vevent-uid-repeat", tier:"MUST", label:"UID twice in one VEVENT",
+   bytes:function(){ return ENC.encode(wrapEvent(BASE + "UID:f1@example.com\r\n")); }},
+  {id:"vevent-dtstamp-repeat", tier:"MUST", label:"DTSTAMP twice in one VEVENT",
+   bytes:function(){ return ENC.encode(wrapEvent(BASE + "DTSTAMP:20260101T000000Z\r\n")); }},
+  {id:"vevent-dtstart", tier:"MUST", label:"No DTSTART and no METHOD",
+   bytes:function(){ return ENC.encode(wrapEvent("UID:f1@example.com\r\nDTSTAMP:20260101T000000Z\r\n")); }},
+  {id:"vevent-dtstart-repeat", tier:"MUST", label:"DTSTART twice in one VEVENT",
+   bytes:function(){ return ENC.encode(wrapEvent(BASE + "DTSTART:20260305T093000Z\r\n")); }},
+  {id:"vevent-end-both", tier:"MUST", label:"DTEND and DURATION together",
+   bytes:function(){ return ENC.encode(wrapEvent(BASE + "DTEND:20260304T103000Z\r\nDURATION:PT1H\r\n")); }},
+  {id:"vevent-dtend-not-later", tier:"MUST", label:"DTEND earlier than DTSTART, both in UTC",
+   bytes:function(){ return ENC.encode(wrapEvent(BASE + "DTEND:20260304T083000Z\r\n")); }},
+  {id:"dtend-not-comparable", tier:"NOTE", label:"DTSTART and DTEND in two different named timezones",
+   also:["tzid-no-vtimezone"],
+   bytes:function(){ return ENC.encode(wrapEvent("UID:f1@example.com\r\nDTSTAMP:20260101T000000Z\r\n" +
+                                                 "DTSTART;TZID=America/New_York:20260304T093000\r\n" +
+                                                 "DTEND;TZID=Europe/Paris:20260304T083000\r\n")); }},
+  {id:"rrule-count-until", tier:"MUST", label:"RRULE with COUNT and UNTIL",
+   bytes:function(){ return ENC.encode(wrapEvent(BASE + "RRULE:FREQ=DAILY;COUNT=5;UNTIL=20261231T235959Z\r\n")); }},
+  {id:"rrule-freq-missing", tier:"MUST", label:"RRULE with no FREQ",
+   bytes:function(){ return ENC.encode(wrapEvent(BASE + "RRULE:COUNT=5\r\n")); }},
+  {id:"rrule-freq-not-first", tier:"MUST", label:"RRULE with FREQ not first",
+   bytes:function(){ return ENC.encode(wrapEvent(BASE + "RRULE:COUNT=5;FREQ=DAILY\r\n")); }},
+  {id:"rrule-repeat", tier:"MUST", label:"RRULE rule part twice",
+   bytes:function(){ return ENC.encode(wrapEvent(BASE + "RRULE:FREQ=DAILY;INTERVAL=2;INTERVAL=3\r\n")); }},
+  {id:"text-unescaped", tier:"MUST", label:"Unescaped COMMA in SUMMARY",
+   bytes:function(){ return ENC.encode(wrapEvent(BASE + "SUMMARY:Design review, phase 2\r\n")); }},
+  {id:"text-escaped-colon", tier:"MUST", label:"Escaped COLON in SUMMARY",
+   bytes:function(){ return ENC.encode(wrapEvent(BASE + "SUMMARY:Start\\: 9am\r\n")); }},
+  {id:"tzid-no-vtimezone", tier:"MUST", label:"TZID parameter with no VTIMEZONE",
+   bytes:function(){ return ENC.encode(wrapEvent("UID:f1@example.com\r\nDTSTAMP:20260101T000000Z\r\n" +
+                                                 "DTSTART;TZID=Europe/Paris:20260304T093000\r\n")); }},
+  {id:"prodid-missing", tier:"MUST", label:"VCALENDAR with no PRODID",
+   bytes:function(){ return ENC.encode("BEGIN:VCALENDAR\r\nVERSION:2.0\r\nBEGIN:VEVENT\r\n" + BASE +
+                                       "END:VEVENT\r\nEND:VCALENDAR\r\n"); }},
+  {id:"version-missing", tier:"MUST", label:"VCALENDAR with no VERSION",
+   bytes:function(){ return ENC.encode("BEGIN:VCALENDAR\r\nPRODID:-//Example Corp//X//EN\r\nBEGIN:VEVENT\r\n" +
+                                       BASE + "END:VEVENT\r\nEND:VCALENDAR\r\n"); }},
+  {id:"prodid-repeat", tier:"MUST", label:"PRODID twice",
+   bytes:function(){ return ENC.encode("BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//A//X//EN\r\n" +
+                                       "PRODID:-//B//X//EN\r\nBEGIN:VEVENT\r\n" + BASE +
+                                       "END:VEVENT\r\nEND:VCALENDAR\r\n"); }},
+  {id:"version-repeat", tier:"MUST", label:"VERSION twice",
+   bytes:function(){ return ENC.encode("BEGIN:VCALENDAR\r\nVERSION:2.0\r\nVERSION:2.0\r\n" +
+                                       "PRODID:-//A//X//EN\r\nBEGIN:VEVENT\r\n" + BASE +
+                                       "END:VEVENT\r\nEND:VCALENDAR\r\n"); }},
+  {id:"nested-vevent", tier:"MUST", label:"VEVENT inside a VEVENT",
+   bytes:function(){ return ENC.encode("BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//A//X//EN\r\n" +
+                                       "BEGIN:VEVENT\r\n" + BASE + "BEGIN:VEVENT\r\n" + BASE +
+                                       "END:VEVENT\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n"); }},
+  {id:"end-mismatch", tier:"MUST", label:"END name does not match BEGIN",
+   bytes:function(){ return ENC.encode("BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//A//X//EN\r\n" +
+                                       "BEGIN:VEVENT\r\n" + BASE + "END:VTODO\r\nEND:VCALENDAR\r\n"); }},
+  {id:"end-unmatched", tier:"MUST", label:"END with no BEGIN",
+   also:["end-mismatch"],
+   bytes:function(){ return ENC.encode("BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//A//X//EN\r\n" +
+                                       "BEGIN:VEVENT\r\n" + BASE + "END:VEVENT\r\nEND:VEVENT\r\n" +
+                                       "END:VCALENDAR\r\n"); }},
+  {id:"begin-unclosed", tier:"MUST", label:"BEGIN with no END at end of input",
+   bytes:function(){ return ENC.encode("BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//A//X//EN\r\n" +
+                                       "BEGIN:VEVENT\r\n" + BASE); }},
+  {id:"contentline", tier:"MUST", label:"Line with no COLON",
+   bytes:function(){ return ENC.encode(wrapEvent(BASE + "THIS LINE HAS NO COLON\r\n")); }},
+  {id:"bare-lf", tier:"MUST", label:"Bare LF instead of CRLF", exactOnly:true,
+   bytes:function(){ return ENC.encode("BEGIN:VCALENDAR\r\nVERSION:2.0\nPRODID:-//A//X//EN\r\n" +
+                                       "BEGIN:VEVENT\r\n" + BASE + "END:VEVENT\r\nEND:VCALENDAR\r\n"); }},
+  {id:"line-width", tier:"SHOULD", label:"Physical line of 77 octets and 75 characters",
+   bytes:function(){ return ENC.encode(wrapEvent(BASE + widthControlLine() + "\r\n")); }},
+  {id:"split-codepoint", tier:"NOTE", label:"Fold inside a 3-octet sequence (hand-built)",
+   bytes:splitControlBytes},
+  {id:"charset-not-utf8", tier:"MUST", label:"Latin-1 byte away from any fold boundary",
+   bytes:charsetControlBytes},
+  {id:"fold-width-signature", tier:"NOTE", label:"Fold point cutting at 75 characters, not 75 octets",
+   also:["line-width"],
+   bytes:function(){ return ENC.encode(foldSignatureFixture()); }}
+];
+
+/* ------------------------------------------------------------------ *
+ * DOM. Nothing here ever touches innerHTML.
+ * ------------------------------------------------------------------ */
+function $(id){ return document.getElementById(id); }
+function el(tag, cls, text){
+  var n = document.createElement(tag);
+  if(cls) n.className = cls;
+  if(text !== undefined && text !== null) n.textContent = String(text);
+  return n;
+}
+function clear(node){ while(node.firstChild) node.removeChild(node.firstChild); }
+
+function renderFinding(f){
+  var li = el("li", "f-" + f.tier.toLowerCase());
+  var head = el("div", "f-head");
+  head.appendChild(el("span", "tier t-" + f.tier.toLowerCase(), f.tier));
+  head.appendChild(el("span", "f-title", f.title));
+  head.appendChild(el("span", "f-where", f.where));
+  li.appendChild(head);
+  li.appendChild(el("p", "f-detail", f.detail));
+  var i;
+  for(i = 0; i < f.rfc.length; i++){
+    var bq = el("blockquote", null, f.rfc[i].q);
+    bq.appendChild(el("cite", null, "RFC 5545, section " + f.rfc[i].sec +
+      (f.rfc[i].abnf ? ", ABNF comment. The leading semicolon comment markers are not reproduced here." : "")));
+    li.appendChild(bq);
+  }
+  return li;
+}
+
+/* Counts come from the detector, not from the rendered list. A check that
+   detected more findings than it rendered would otherwise report the size of
+   the list as the size of the problem. */
+function countBy(res, tier){
+  if(res && res.counts) return res.counts[tier];
+  var F = (res && res.findings) || [], n = 0, i;
+  for(i = 0; i < F.length; i++) if(F[i].tier === tier) n++;
+  return n;
+}
+
+function renderReport(res, into){
+  var verdict = into.verdict, results = into.results;
+  clear(verdict);
+  verdict.hidden = false;
+
+  if(res.refused){
+    clear($("input-error-text"));
+    $("input-error-text").textContent = res.message;
+    var extra = $("input-error-extra");
+    if(res.extra){ extra.textContent = res.extra; extra.hidden = false; } else { extra.hidden = true; }
+    $("input-error").hidden = false;
+    verdict.hidden = true;
+    if(results) results.hidden = true;
+    return;
+  }
+  $("input-error").hidden = true;
+
+  var m = countBy(res, "MUST"), s = countBy(res, "SHOULD"), n = countBy(res, "NOTE");
+  var head = el("h2", null, m === 0
+    ? "Conforming on every check this page runs."
+    : "Not a conforming iCalendar object.");
+  verdict.appendChild(head);
+  if(res.truncated){
+    verdict.appendChild(el("p", null,
+      "The object is truncated: BEGIN:VCALENDAR has no matching END:VCALENDAR. Findings below may be incomplete."));
+  }
+  var ul = el("ul", "counts");
+  ul.appendChild(el("li", null, "MUST findings: " + m));
+  ul.appendChild(el("li", null, "SHOULD findings: " + s));
+  ul.appendChild(el("li", null, "Notes: " + n));
+  verdict.appendChild(ul);
+  verdict.appendChild(el("p", "hint",
+    "Read from " + res.stats.physicalLines + " physical lines" +
+    (res.stats.events ? ", " + res.stats.events + " event component" + (res.stats.events === 1 ? "" : "s") : "") +
+    (res.exactOctets ? ". Octets read exactly from the uploaded file." :
+      ". Octets re-encoded from text your browser had already decoded.")));
+  if(m === 0 && s > 0){
+    verdict.appendChild(el("p", null,
+      "A file that fails only SHOULD-level checks is still a conforming iCalendar object."));
+  }
+
+  if(!results) return;
+  results.hidden = false;
+  /* The group headings carry their own counts in words, so a reader who jumps
+     straight to a heading does not have to go back up to the verdict. */
+  $("h-must").textContent = "MUST findings: " + m;
+  $("h-should").textContent = "SHOULD findings: " + s;
+  $("h-note").textContent = "Notes: " + n;
+  var lm = $("list-must"), ls = $("list-should"), ln = $("list-note");
+  clear(lm); clear(ls); clear(ln);
+  var i, f;
+  for(i = 0; i < res.findings.length; i++){
+    f = res.findings[i];
+    (f.tier === "MUST" ? lm : f.tier === "SHOULD" ? ls : ln).appendChild(renderFinding(f));
+  }
+  if(!m) lm.appendChild(el("li", null, "None."));
+  if(!s) ls.appendChild(el("li", null, "None."));
+  if(!n) ln.appendChild(el("li", null, "None."));
+}
+
+/* ------------------------------------------------------------------ *
+ * Wiring: validate panel
+ * ------------------------------------------------------------------ */
+var lastFileBytes = null;
+
+function runCheck(){
+  $("selftest").hidden = true;
+  var bytes, exact;
+  if(lastFileBytes){
+    bytes = lastFileBytes; exact = true;
+    $("paste-warning").hidden = true;
+  } else {
+    var txt = $("paste").value;
+    bytes = ENC.encode(txt);
+    exact = false;
+    $("paste-warning").hidden = (txt.length === 0);
+  }
+  var res;
+  try {
+    res = validate(bytes, {exactOctets: exact});
+  } catch(e){
+    res = {refused: true, refusal: "crashed",
+           message: "The parser failed on this input. " + (e && e.message ? String(e.message) : "") +
+                    " Nothing was sent anywhere; reload the page and try a smaller sample."};
+  }
+  renderReport(res, {verdict: $("verdict"), results: $("results")});
+}
+
+$("btn-check").addEventListener("click", runCheck);
+
+$("file").addEventListener("change", function(){
+  var f = this.files && this.files[0];
+  if(!f){ lastFileBytes = null; return; }
+  var r = new FileReader();
+  r.onload = function(){
+    lastFileBytes = new Uint8Array(r.result);
+    $("paste").value = "";
+    runCheck();
+  };
+  r.onerror = function(){
+    lastFileBytes = null;
+    $("input-error-text").textContent = "The file could not be read from disk. Nothing was sent anywhere.";
+    $("input-error-extra").hidden = true;
+    $("input-error").hidden = false;
+  };
+  r.readAsArrayBuffer(f);
+});
+
+$("paste").addEventListener("input", function(){ lastFileBytes = null; $("file").value = ""; });
+
+$("btn-clear").addEventListener("click", function(){
+  lastFileBytes = null;
+  $("paste").value = "";
+  $("file").value = "";
+  $("verdict").hidden = true;
+  $("results").hidden = true;
+  $("selftest").hidden = true;
+  $("input-error").hidden = true;
+  $("paste-warning").hidden = true;
+});
+
+$("btn-fixture").addEventListener("click", function(){
+  /* Loads one composite fixture that trips several checks at once. */
+  lastFileBytes = null;
+  $("file").value = "";
+  $("paste").value =
+    "BEGIN:VCALENDAR\r\n" +
+    "VERSION:2.0\r\n" +
+    "BEGIN:VEVENT\r\n" +
+    "UID:demo@example.com\r\n" +
+    "DTSTART;TZID=Europe/Paris:20260304T093000\r\n" +
+    "DTEND;TZID=Europe/Paris:20260304T103000\r\n" +
+    "DURATION:PT1H\r\n" +
+    "SUMMARY:Design review, phase 2\r\n" +
+    "RRULE:COUNT=5;FREQ=DAILY;UNTIL=20261231T235959Z\r\n" +
+    widthControlLine().replace("SUMMARY:", "DESCRIPTION:") + "\r\n" +
+    "END:VEVENT\r\n" +
+    "END:VCALENDAR\r\n";
+  runCheck();
+});
+
+/* ------------------------------------------------------------------ *
+ * Self test
+ * ------------------------------------------------------------------ */
+function hasFinding(res, id){
+  var i;
+  if(res.refused) return false;
+  for(i = 0; i < res.findings.length; i++) if(res.findings[i].id === id) return true;
+  return false;
+}
+
+/* The set of distinct check ids a result reported, sorted, as one string.
+   Asking only whether a check fired lets a detector that fires on everything
+   pass its own control, and hides every collateral finding a fixture produces. */
+function idSet(res){
+  if(res.refused) return "REFUSED:" + res.refusal;
+  var seen = {}, out = [], i, id;
+  for(i = 0; i < res.findings.length; i++){
+    id = res.findings[i].id;
+    if(!Object.prototype.hasOwnProperty.call(seen, id)){ seen[id] = true; out.push(id); }
+  }
+  return out.sort().join(", ") || "(none)";
+}
+
+function expectedSet(fx){
+  var out = [fx.id], i;
+  if(fx.also) for(i = 0; i < fx.also.length; i++) out.push(fx.also[i]);
+  return out.sort().join(", ");
+}
+
+function runSelfTest(){
+  var tbody = $("selftest-table").getElementsByTagName("tbody")[0];
+  clear(tbody);
+  var rows = [], i, fx, res, ok, tripped = 0;
+
+  /* 1. every detector trips its own positive control, AND reports nothing the
+        fixture does not declare. Collateral findings are a failure unless the
+        fixture names them in its "also" list. */
+  for(i = 0; i < FIXTURES.length; i++){
+    fx = FIXTURES[i];
+    res = validate(fx.bytes(), {exactOctets: true});
+    if(hasFinding(res, fx.id)) tripped++;
+    var want = expectedSet(fx), have = idSet(res);
+    ok = (want === have);
+    rows.push({name: "positive control for " + fx.tier + " check \"" + fx.id + "\": " + fx.label,
+               expect: "reports exactly: " + want, got: have, pass: ok});
+  }
+
+  /* 2. the clean fixture trips nothing */
+  var cleanRes = validate(ENC.encode(CLEAN), {exactOctets: true});
+  var cleanCount = cleanRes.findings.length;
+  rows.push({name: "clean fixture produces no findings of any tier",
+             expect: "0 MUST, 0 SHOULD, 0 notes",
+             got: countBy(cleanRes, "MUST") + " MUST, " + countBy(cleanRes, "SHOULD") +
+                  " SHOULD, " + countBy(cleanRes, "NOTE") + " notes",
+             pass: cleanCount === 0});
+
+  /* 3. the line-width control really is 77 octets and 75 characters */
+  var wl = widthControlLine();
+  rows.push({name: "line-width control is 77 octets and 75 characters",
+             expect: "77 octets, 75 characters",
+             got: ENC.encode(wl).length + " octets, " + wl.length + " characters",
+             pass: ENC.encode(wl).length === 77 && wl.length === 75});
+
+  /* 4. the split-codepoint control really is undecodable per physical line */
+  var sc = splitControlBytes(), scPhys = splitPhysical(sc), scBad = 0;
+  for(i = 0; i < scPhys.length; i++) if(!decodesStrictly(scPhys[i].b)) scBad++;
+  rows.push({name: "split-codepoint control has physical lines that fail a strict UTF-8 decode",
+             expect: "2 such lines", got: scBad + " such lines", pass: scBad === 2});
+
+  /* 5. and unfolds back to a whole character */
+  var scLog = unfold(scPhys), joined = "";
+  for(i = 0; i < scLog.length; i++) joined += scLog[i].text;
+  rows.push({name: "unfolding the split-codepoint control restores the original character",
+             expect: "contains U+20AC", got: joined.indexOf("€") !== -1 ? "contains U+20AC" : "lost",
+             pass: joined.indexOf("€") !== -1});
+
+  /* 6. builder output folds at 75 octets and never splits a codepoint */
+  var long = "SUMMARY:";
+  for(i = 0; i < 60; i++) long += "é";           /* 60 two-octet characters */
+  var foldedOut = foldLine(long);
+  var fbytes = ENC.encode(foldedOut), fphys = splitPhysical(fbytes), maxOct = 0, badDecode = 0;
+  for(i = 0; i < fphys.length; i++){
+    if(fphys[i].b.length > maxOct) maxOct = fphys[i].b.length;
+    if(!decodesStrictly(fphys[i].b)) badDecode++;
+  }
+  rows.push({name: "folder keeps every physical line at 75 octets or fewer",
+             expect: "max 75 octets", got: "max " + maxOct + " octets", pass: maxOct <= 75});
+  rows.push({name: "folder never cuts inside a UTF-8 sequence",
+             expect: "0 undecodable lines", got: badDecode + " undecodable lines", pass: badDecode === 0});
+  rows.push({name: "unfolding the folder's own output restores the input exactly",
+             expect: "identical", got: (function(){
+               var lg = unfold(fphys), s = "";
+               for(var k = 0; k < lg.length; k++) s += lg[k].text;
+               return s === long ? "identical" : "differs";
+             })(),
+             pass: (function(){
+               var lg = unfold(fphys), s = "";
+               for(var k = 0; k < lg.length; k++) s += lg[k].text;
+               return s === long;
+             })()});
+
+  /* 7. TEXT escaping round trip */
+  var raw = "a,b;c\\d\ne";
+  var esc = escapeText(raw);
+  rows.push({name: "TEXT escaping writes COMMA, SEMICOLON, BACKSLASH and newline per section 3.3.11",
+             expect: "a\\,b\\;c\\\\d\\ne", got: esc, pass: esc === "a\\,b\\;c\\\\d\\ne"});
+  rows.push({name: "escaped TEXT reports no unescaped-character finding",
+             expect: "no text-unescaped finding",
+             got: (function(){
+               var r = validate(ENC.encode(wrapEvent(BASE + "SUMMARY:" + esc + "\r\n")), {exactOctets: true});
+               return hasFinding(r, "text-unescaped") ? "finding reported" : "no text-unescaped finding";
+             })(),
+             pass: !hasFinding(validate(ENC.encode(wrapEvent(BASE + "SUMMARY:" + esc + "\r\n")),
+                                        {exactOctets: true}), "text-unescaped")});
+
+  /* 8. CATEGORIES is list-valued, so a COMMA there is a separator, not an error */
+  rows.push({name: "COMMA in list-valued CATEGORIES is a separator, not a finding",
+             expect: "no text-unescaped finding",
+             got: (function(){
+               var r = validate(ENC.encode(wrapEvent(BASE + "CATEGORIES:work,review\r\n")), {exactOctets: true});
+               return hasFinding(r, "text-unescaped") ? "finding reported" : "no text-unescaped finding";
+             })(),
+             pass: !hasFinding(validate(ENC.encode(wrapEvent(BASE + "CATEGORIES:work,review\r\n")),
+                                        {exactOctets: true}), "text-unescaped")});
+
+  /* 9. a quoted parameter value hides COLON, SEMICOLON and COMMA from the tokenizer */
+  var tk = tokenize("ATTENDEE;CN=\"Doe, John; ceo\";ROLE=CHAIR:mailto:j@example.com");
+  rows.push({name: "quoted parameter value keeps COLON, SEMICOLON and COMMA literal (section 3.1.1)",
+             expect: "name ATTENDEE, 2 params, value mailto:j@example.com",
+             got: tk ? ("name " + tk.name + ", " + tk.params.length + " params, value " + tk.value) : "did not parse",
+             pass: !!tk && tk.name === "ATTENDEE" && tk.params.length === 2 &&
+                   tk.value === "mailto:j@example.com" && tk.params[0].value === "Doe, John; ceo"});
+
+  /* 10. empty input is refused, not silently passed */
+  var er = validate(new Uint8Array(0), {exactOctets: true});
+  rows.push({name: "empty input is refused rather than reported as valid",
+             expect: "refused, reason empty", got: er.refused ? "refused, reason " + er.refusal : "not refused",
+             pass: er.refused === true && er.refusal === "empty"});
+
+  /* 11. a non-calendar file is refused with its own message */
+  var nr = validate(ENC.encode("hello world\r\n"), {exactOctets: true});
+  rows.push({name: "input with no BEGIN:VCALENDAR is refused with its own message",
+             expect: "refused, reason not-ical", got: nr.refused ? "refused, reason " + nr.refusal : "not refused",
+             pass: nr.refused === true && nr.refusal === "not-ical"});
+
+  /* 11b. the other two refusals. The README lists five, so all five need a
+     fixture; a refusal with no control is a refusal nobody has watched fire. */
+  var tooBig = validate(new Uint8Array(MAX_BYTES + 1), {exactOctets: true});
+  rows.push({name: "input over the byte limit is refused with its own message",
+             expect: "refused, reason too-big",
+             got: tooBig.refused ? "refused, reason " + tooBig.refusal : "not refused",
+             pass: tooBig.refused === true && tooBig.refusal === "too-big"});
+
+  var manyLines = new Uint8Array(MAX_LINES + 2), kk;
+  for(kk = 0; kk < manyLines.length; kk++) manyLines[kk] = 0x0A;
+  var tooMany = validate(manyLines, {exactOctets: true});
+  rows.push({name: "input over the line limit is refused with its own message",
+             expect: "refused, reason too-many-lines",
+             got: tooMany.refused ? "refused, reason " + tooMany.refusal : "not refused",
+             pass: tooMany.refused === true && tooMany.refusal === "too-many-lines"});
+
+  /* 12. bytes that are not UTF-8 are refused, not guessed at */
+  var junk = new Uint8Array(200), k;
+  for(k = 0; k < junk.length; k++) junk[k] = (k % 7 === 0) ? 0x0D : (k % 7 === 1) ? 0x0A : 0xFE;
+  var jr = validate(junk, {exactOctets: true});
+  rows.push({name: "largely undecodable bytes are refused, not guessed at",
+             expect: "refused, reason not-utf8", got: jr.refused ? "refused, reason " + jr.refusal : "not refused",
+             pass: jr.refused === true && jr.refusal === "not-utf8"});
+
+  /* 13. bare-LF check is suppressed on the paste path and says so */
+  var blf = ENC.encode("BEGIN:VCALENDAR\r\nVERSION:2.0\nPRODID:-//A//X//EN\r\nBEGIN:VEVENT\r\n" + BASE +
+                       "END:VEVENT\r\nEND:VCALENDAR\r\n");
+  rows.push({name: "bare-LF check does not run on the paste path",
+             expect: "no bare-lf finding when octets are not exact",
+             got: hasFinding(validate(blf, {exactOctets: false}), "bare-lf") ? "finding reported" : "not reported",
+             pass: !hasFinding(validate(blf, {exactOctets: false}), "bare-lf")});
+
+  /* 13b. an LF-only object is checked, not refused. A textarea normalises CRLF
+     to LF before script can read it, so every pasted file arrives this way. */
+  var lfOnly = ENC.encode(CLEAN.replace(/\r\n/g, "\n"));
+  var lfRes = validate(lfOnly, {exactOctets: false});
+  rows.push({name: "an LF-only object is checked rather than refused as not an iCalendar object",
+             expect: "not refused, 0 MUST findings",
+             got: lfRes.refused ? ("refused, reason " + lfRes.refusal)
+                                : (countBy(lfRes, "MUST") + " MUST findings"),
+             pass: !lfRes.refused && countBy(lfRes, "MUST") === 0});
+  rows.push({name: "the same LF-only object reports the bare-LF violation on the file path",
+             expect: "reports bare-lf",
+             got: hasFinding(validate(lfOnly, {exactOctets: true}), "bare-lf") ? "reports bare-lf" : "silent",
+             pass: hasFinding(validate(lfOnly, {exactOctets: true}), "bare-lf")});
+
+  /* 14. the builder's own default output validates clean */
+  var built = buildEvent({summary:"Design review, phase 2; room B", description:"Line one\nLine two",
+                          location:"Café Zoë, 12 rue de l'Église", start:"2026-03-04T09:30",
+                          end:"2026-03-04T10:30", endMode:"dtend", timeMode:"utc", freq:"WEEKLY",
+                          interval:"2", limit:"count", limitVal:"10", byday:"MO,WE,FR"});
+  var builtRes = built.text ? validate(ENC.encode(built.text), {exactOctets: true}) : null;
+  rows.push({name: "builder output passes this page's own validator with zero findings",
+             expect: "0 MUST, 0 SHOULD, 0 notes",
+             got: builtRes && !builtRes.refused
+               ? (countBy(builtRes, "MUST") + " MUST, " + countBy(builtRes, "SHOULD") +
+                  " SHOULD, " + countBy(builtRes, "NOTE") + " notes")
+               : "builder refused",
+             pass: !!builtRes && !builtRes.refused && builtRes.findings.length === 0});
+
+  /* 15. the builder refuses bad input rather than emitting a broken object */
+  var bad = buildEvent({start:"", endMode:"none", timeMode:"utc"});
+  rows.push({name: "builder refuses an empty DTSTART instead of emitting a broken object",
+             expect: "refused with a message", got: bad.error ? "refused" : "emitted output",
+             pass: !!bad.error});
+
+  /* 16. sub-components belong to themselves. Every fixture above is a flat
+     VEVENT, so without these two rows the whole component-scoping path ships
+     untested, and it was wrong in both directions before. */
+  var alarmOK = ENC.encode(wrapEvent(BASE + "DTEND:20260304T103000Z\r\nSUMMARY:Standup\r\n" +
+    "BEGIN:VALARM\r\nACTION:DISPLAY\r\nDESCRIPTION:Reminder\r\nTRIGGER:-PT15M\r\n" +
+    "DURATION:PT15M\r\nREPEAT:2\r\nEND:VALARM\r\n"));
+  var alarmRes = validate(alarmOK, {exactOctets: true});
+  rows.push({name: "a repeating VALARM inside a VEVENT with DTEND reports nothing (its DURATION is the alarm's)",
+             expect: "(none)", got: idSet(alarmRes), pass: idSet(alarmRes) === "(none)"});
+
+  var alarmUID = ENC.encode(wrapEvent("DTSTAMP:20260101T000000Z\r\nDTSTART:20260304T093000Z\r\n" +
+    "BEGIN:VALARM\r\nACTION:DISPLAY\r\nDESCRIPTION:r\r\nTRIGGER:-PT15M\r\n" +
+    "UID:alarm-1@example.com\r\nEND:VALARM\r\n"));
+  rows.push({name: "a UID on the VALARM does not stand in for the VEVENT's missing UID",
+             expect: "reports vevent-uid",
+             got: hasFinding(validate(alarmUID, {exactOctets: true}), "vevent-uid") ? "reports vevent-uid" : "silent",
+             pass: hasFinding(validate(alarmUID, {exactOctets: true}), "vevent-uid")});
+
+  /* 17. METHOD is a calendar property. One misplaced inside a VEVENT must not
+     switch the missing-DTSTART requirement off for the whole object. */
+  var badMethod = ENC.encode("BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//A//X//EN\r\n" +
+    "BEGIN:VEVENT\r\nUID:1@e\r\nDTSTAMP:20260101T000000Z\r\nMETHOD:REQUEST\r\nEND:VEVENT\r\n" +
+    "BEGIN:VEVENT\r\nUID:2@e\r\nDTSTAMP:20260101T000000Z\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n");
+  var bmRes = validate(badMethod, {exactOctets: true});
+  rows.push({name: "METHOD inside a VEVENT does not suppress the missing-DTSTART requirement",
+             expect: "2 MUST findings, all vevent-dtstart",
+             got: countBy(bmRes, "MUST") + " MUST findings, ids: " + idSet(bmRes),
+             pass: countBy(bmRes, "MUST") === 2 && idSet(bmRes) === "vevent-dtstart"});
+
+  var calMethodOK = ENC.encode("BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//A//X//EN\r\nMETHOD:REQUEST\r\n" +
+    "BEGIN:VEVENT\r\nUID:1@e\r\nDTSTAMP:20260101T000000Z\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n");
+  rows.push({name: "METHOD at calendar level still makes DTSTART optional",
+             expect: "(none)", got: idSet(validate(calMethodOK, {exactOctets: true})),
+             pass: idSet(validate(calMethodOK, {exactOctets: true})) === "(none)"});
+
+  /* 18. a mismatched END closes the event it actually opened, so the next
+     sibling event is not reported as nested inside it. */
+  var misEnd = ENC.encode("BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//A//X//EN\r\n" +
+    "BEGIN:VEVENT\r\n" + BASE + "END:VTODO\r\nBEGIN:VEVENT\r\n" + BASE +
+    "END:VEVENT\r\nEND:VCALENDAR\r\n");
+  rows.push({name: "a VEVENT closed by a mismatched END does not make its sibling look nested",
+             expect: "end-mismatch", got: idSet(validate(misEnd, {exactOctets: true})),
+             pass: idSet(validate(misEnd, {exactOctets: true})) === "end-mismatch"});
+
+  /* 19. the fold-width signature needs the shared count to BE a fold width.
+     A correct 75-octet folder cutting non-ASCII text shares a count too. */
+  var octetFolded = ENC.encode(octetFoldedFixture());
+  rows.push({name: "a file folded correctly at 75 octets is not accused of folding by character count",
+             expect: "(none)", got: idSet(validate(octetFolded, {exactOctets: true})),
+             pass: idSet(validate(octetFolded, {exactOctets: true})) === "(none)"});
+
+  /* 19b. the DTEND ordering check has to stay silent on the shapes real files
+     are full of. An all-day event ends on the following DATE, and a DATE paired
+     with a DATE-TIME is a value-type question this page does not answer. */
+  var allDay = ENC.encode(wrapEvent("UID:f1@example.com\r\nDTSTAMP:20260101T000000Z\r\n" +
+    "DTSTART;VALUE=DATE:20260304\r\nDTEND;VALUE=DATE:20260305\r\n"));
+  rows.push({name: "an all-day event ending on the next DATE reports nothing",
+             expect: "(none)", got: idSet(validate(allDay, {exactOctets: true})),
+             pass: idSet(validate(allDay, {exactOctets: true})) === "(none)"});
+
+  var mixedType = ENC.encode(wrapEvent("UID:f1@example.com\r\nDTSTAMP:20260101T000000Z\r\n" +
+    "DTSTART;VALUE=DATE:20260304\r\nDTEND:20260304T103000Z\r\n"));
+  rows.push({name: "a DATE paired with a DATE-TIME is not ordered, because they are different value types",
+             expect: "(none)", got: idSet(validate(mixedType, {exactOctets: true})),
+             pass: idSet(validate(mixedType, {exactOctets: true})) === "(none)"});
+
+  var sameTz = ENC.encode("BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//Example Corp//X//EN\r\n" +
+    "BEGIN:VTIMEZONE\r\nTZID:Europe/Paris\r\nBEGIN:STANDARD\r\nDTSTART:19701025T030000\r\n" +
+    "TZOFFSETFROM:+0200\r\nTZOFFSETTO:+0100\r\nEND:STANDARD\r\nEND:VTIMEZONE\r\n" +
+    "BEGIN:VEVENT\r\nUID:f1@example.com\r\nDTSTAMP:20260101T000000Z\r\n" +
+    "DTSTART;TZID=Europe/Paris:20260304T093000\r\nDTEND;TZID=Europe/Paris:20260304T103000\r\n" +
+    "END:VEVENT\r\nEND:VCALENDAR\r\n");
+  rows.push({name: "two times carrying the same TZID are ordered without resolving any offset",
+             expect: "(none)", got: idSet(validate(sameTz, {exactOctets: true})),
+             pass: idSet(validate(sameTz, {exactOctets: true})) === "(none)"});
+
+  /* 20. a charset problem is named as one, not as a fold defect */
+  var csRes = validate(charsetControlBytes(), {exactOctets: true});
+  rows.push({name: "a Latin-1 byte away from a fold boundary is reported as a charset problem, not a fold",
+             expect: "charset-not-utf8", got: idSet(csRes), pass: idSet(csRes) === "charset-not-utf8"});
+
+  /* 21. the verdict numbers are the detector's, not the rendered list's */
+  var manyWide = ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//A//X//EN", "BEGIN:VEVENT",
+                  "UID:1@e", "DTSTAMP:20260101T000000Z", "DTSTART:20260101T000000Z"], padz = "";
+  for(i = 0; i < 74; i++) padz += "z";
+  for(i = 0; i < PER_ID_CAP + 100; i++) manyWide.push("COMMENT:" + padz);
+  manyWide.push("END:VEVENT", "END:VCALENDAR");
+  var capRes = validate(ENC.encode(manyWide.join("\r\n") + "\r\n"), {exactOctets: true});
+  rows.push({name: "the SHOULD count is the number detected, not the number of rows rendered",
+             expect: (PER_ID_CAP + 100) + " SHOULD counted, " + (PER_ID_CAP + 1) + " rows rendered",
+             got: countBy(capRes, "SHOULD") + " SHOULD counted, " + capRes.findings.length + " rows rendered",
+             pass: countBy(capRes, "SHOULD") === PER_ID_CAP + 100 &&
+                   capRes.findings.length === PER_ID_CAP + 1});
+
+  /* 22. the section 3.1.1 list-separator citation actually reaches the reader */
+  var listyRes = validate(ENC.encode(wrapEvent(BASE + "CATEGORIES:work;review\r\n")), {exactOctets: true});
+  rows.push({name: "a finding on a list-valued TEXT property carries the section 3.1.1 citation",
+             expect: "text-unescaped citing 3.1.1",
+             got: (function(){
+               var j, f;
+               for(j = 0; j < listyRes.findings.length; j++){
+                 f = listyRes.findings[j];
+                 if(f.id !== "text-unescaped") continue;
+                 for(var q = 0; q < f.rfc.length; q++) if(f.rfc[q].sec === "3.1.1") return "text-unescaped citing 3.1.1";
+                 return "text-unescaped, no 3.1.1 citation";
+               }
+               return "no text-unescaped finding";
+             })(),
+             pass: (function(){
+               var j, f;
+               for(j = 0; j < listyRes.findings.length; j++){
+                 f = listyRes.findings[j];
+                 if(f.id !== "text-unescaped") continue;
+                 for(var q = 0; q < f.rfc.length; q++) if(f.rfc[q].sec === "3.1.1") return true;
+               }
+               return false;
+             })()});
+
+  /* 23. the builder refuses every input that would make it emit a defect this
+     page would then report against itself. Each of these built output before. */
+  var refusals = [
+    {why: "DURATION of PT, which has a T with nothing after it",
+     cfg: {start:"2026-03-04T09:30", endMode:"duration", timeMode:"utc", duration:"PT"}},
+    {why: "DURATION of P1DT, which has a T with nothing after it",
+     cfg: {start:"2026-03-04T09:30", endMode:"duration", timeMode:"utc", duration:"P1DT"}},
+    {why: "DTSTART of 2026-13-45T25:99, every field out of range",
+     cfg: {start:"2026-13-45T25:99", endMode:"none", timeMode:"utc"}},
+    {why: "TZID carrying a SEMICOLON, which smuggles a second parameter",
+     cfg: {start:"2026-03-04T09:30", endMode:"none", timeMode:"tzid", tzid:"Europe/Paris;X-EVIL=1"}},
+    {why: "TZID carrying a COMMA",
+     cfg: {start:"2026-03-04T09:30", endMode:"none", timeMode:"tzid", tzid:"A,B"}},
+    {why: "TZID carrying a DQUOTE",
+     cfg: {start:"2026-03-04T09:30", endMode:"none", timeMode:"tzid", tzid:"A\"B"}},
+    {why: "COUNT of 0000, which is zero written four ways",
+     cfg: {start:"2026-03-04T09:30", endMode:"none", timeMode:"utc", freq:"DAILY", limit:"count", limitVal:"0000"}},
+    {why: "BYDAY of 0MO, an ordinal outside 1 to 53",
+     cfg: {start:"2026-03-04T09:30", endMode:"none", timeMode:"utc", freq:"WEEKLY", byday:"0MO"}},
+    {why: "BYDAY of 99MO, an ordinal outside 1 to 53",
+     cfg: {start:"2026-03-04T09:30", endMode:"none", timeMode:"utc", freq:"WEEKLY", byday:"99MO"}},
+    {why: "DTEND one hour before DTSTART, both in UTC",
+     cfg: {start:"2026-03-04T10:30", end:"2026-03-04T09:30", endMode:"dtend", timeMode:"utc"}},
+    {why: "DTSTART of 2026-02-30T09:30, a day February does not have",
+     cfg: {start:"2026-02-30T09:30", endMode:"none", timeMode:"utc"}},
+    {why: "DTSTART of 2026-02-29T09:30, a leap day in a year that has none",
+     cfg: {start:"2026-02-29T09:30", endMode:"none", timeMode:"floating"}},
+    {why: "DTEND of 2026-04-31T10:30, a day April does not have",
+     cfg: {start:"2026-04-30T09:30", end:"2026-04-31T10:30", endMode:"dtend", timeMode:"utc"}},
+    {why: "UNTIL of 20261399T999999Z, the right shape with every field out of range",
+     cfg: {start:"2026-03-04T09:30", endMode:"none", timeMode:"utc", freq:"DAILY", limit:"until",
+           limitVal:"20261399T999999Z"}},
+    {why: "UNTIL of 20260230T120000Z, a day February does not have",
+     cfg: {start:"2026-03-04T09:30", endMode:"none", timeMode:"utc", freq:"DAILY", limit:"until",
+           limitVal:"20260230T120000Z"}},
+    {why: "DURATION of -PT1H, which is negative",
+     cfg: {start:"2026-03-04T09:30", endMode:"duration", timeMode:"utc", duration:"-PT1H"}},
+    {why: "DURATION of PT0S, which is zero",
+     cfg: {start:"2026-03-04T09:30", endMode:"duration", timeMode:"utc", duration:"PT0S"}},
+    {why: "BYDAY of MO, with an empty entry after the comma",
+     cfg: {start:"2026-03-04T09:30", endMode:"none", timeMode:"utc", freq:"WEEKLY", byday:"MO,"}},
+    {why: "BYDAY of MO,,FR, with an empty entry in the middle",
+     cfg: {start:"2026-03-04T09:30", endMode:"none", timeMode:"utc", freq:"WEEKLY", byday:"MO,,FR"}},
+    {why: "BYDAY of 1MO with FREQ=WEEKLY, a numbered weekday outside MONTHLY or YEARLY",
+     cfg: {start:"2026-03-04T09:30", endMode:"none", timeMode:"utc", freq:"WEEKLY", byday:"1MO"}},
+    {why: "BYDAY of 0MO with FREQ=MONTHLY, where only the ordinal range can refuse it",
+     cfg: {start:"2026-03-04T09:30", endMode:"none", timeMode:"utc", freq:"MONTHLY", byday:"0MO"}},
+    {why: "BYDAY of 99MO with FREQ=MONTHLY, where only the ordinal range can refuse it",
+     cfg: {start:"2026-03-04T09:30", endMode:"none", timeMode:"utc", freq:"MONTHLY", byday:"99MO"}},
+    {why: "a SUMMARY carrying a BEL control character",
+     cfg: {summary:"Stand\u0007up", start:"2026-03-04T09:30", endMode:"none", timeMode:"utc"}},
+    {why: "a LOCATION carrying a DEL control character",
+     cfg: {location:"Room\u007fB", start:"2026-03-04T09:30", endMode:"none", timeMode:"utc"}}
+  ];
+  for(i = 0; i < refusals.length; i++){
+    var rr = buildEvent(refusals[i].cfg);
+    rows.push({name: "builder refuses " + refusals[i].why,
+               expect: "BUILD REFUSED", got: rr.error ? "BUILD REFUSED" : "emitted output", pass: !!rr.error});
+  }
+
+  /* 24. and still builds the things that are legal */
+  var legal = [
+    {why: "a DURATION of P1DT2H", cfg: {start:"2026-03-04T09:30", endMode:"duration", timeMode:"utc", duration:"P1DT2H"}},
+    {why: "a DURATION of P1W", cfg: {start:"2026-03-04T09:30", endMode:"duration", timeMode:"utc", duration:"P1W"}},
+    {why: "a BYDAY of -1SU", cfg: {start:"2026-03-04T09:30", endMode:"none", timeMode:"utc", freq:"MONTHLY", byday:"-1SU"}},
+    {why: "a TZID of Europe/Paris", cfg: {start:"2026-03-04T09:30", endMode:"none", timeMode:"tzid", tzid:"Europe/Paris"}},
+    {why: "a DTSTART of 2028-02-29T09:30, a real leap day", cfg: {start:"2028-02-29T09:30", endMode:"none", timeMode:"utc"}},
+    {why: "an UNTIL of 20261231T235959Z", cfg: {start:"2026-03-04T09:30", endMode:"none", timeMode:"utc", freq:"DAILY",
+                                                limit:"until", limitVal:"20261231T235959Z"}},
+    {why: "a DURATION of +PT15M, positive with an explicit sign",
+     cfg: {start:"2026-03-04T09:30", endMode:"duration", timeMode:"utc", duration:"+PT15M"}},
+    {why: "a BYDAY of 2TU with FREQ=YEARLY", cfg: {start:"2026-03-04T09:30", endMode:"none", timeMode:"utc", freq:"YEARLY", byday:"2TU"}},
+    {why: "a DESCRIPTION carrying a TAB and a line break",
+     cfg: {description:"one\ttwo\nthree", start:"2026-03-04T09:30", endMode:"none", timeMode:"utc"}}
+  ];
+  for(i = 0; i < legal.length; i++){
+    var lr = buildEvent(legal[i].cfg);
+    rows.push({name: "builder still accepts " + legal[i].why,
+               expect: "output", got: lr.error ? "REFUSED: " + lr.error : "output", pass: !lr.error});
+  }
+
+  /* 25. TZID text from the file is a map key and nothing more. A TZID of
+     __proto__ used to replace the map's prototype and vanish from the check. */
+  var protoMissing = ENC.encode(wrapEvent("UID:f1@example.com\r\nDTSTAMP:20260101T000000Z\r\n" +
+    "DTSTART;TZID=__proto__:20260304T093000\r\n"));
+  rows.push({name: "a TZID of __proto__ with no VTIMEZONE is reported, not swallowed by the map's prototype",
+             expect: "tzid-no-vtimezone", got: idSet(validate(protoMissing, {exactOctets: true})),
+             pass: idSet(validate(protoMissing, {exactOctets: true})) === "tzid-no-vtimezone"});
+  var protoHeld = ENC.encode("BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//Example Corp//X//EN\r\n" +
+    "BEGIN:VTIMEZONE\r\nTZID:__proto__\r\nBEGIN:STANDARD\r\nDTSTART:19701025T030000\r\n" +
+    "TZOFFSETFROM:+0200\r\nTZOFFSETTO:+0100\r\nEND:STANDARD\r\nEND:VTIMEZONE\r\n" +
+    "BEGIN:VEVENT\r\nUID:f1@example.com\r\nDTSTAMP:20260101T000000Z\r\n" +
+    "DTSTART;TZID=__proto__:20260304T093000\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n");
+  rows.push({name: "a TZID of __proto__ with its matching VTIMEZONE reports nothing",
+             expect: "(none)", got: idSet(validate(protoHeld, {exactOctets: true})),
+             pass: idSet(validate(protoHeld, {exactOctets: true})) === "(none)"});
+
+  /* 26. the truncation lead line names VCALENDAR, so it is raised only when a
+     VCALENDAR really is still open, and still raised when one is. */
+  var strayRes = validate(ENC.encode(CLEAN + "BEGIN:VTODO\r\nUID:t1@example.com\r\n"), {exactOctets: true});
+  rows.push({name: "a component left open after END:VCALENDAR is reported without claiming the VCALENDAR is unclosed",
+             expect: "begin-unclosed, no truncation line",
+             got: idSet(strayRes) + (strayRes.truncated ? ", truncation line" : ", no truncation line"),
+             pass: idSet(strayRes) === "begin-unclosed" && strayRes.truncated === false});
+  var cutRes = validate(ENC.encode("BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//A//X//EN\r\n" +
+                                   "BEGIN:VEVENT\r\n" + BASE), {exactOctets: true});
+  rows.push({name: "a VCALENDAR cut off before its END leads the report with the truncation line",
+             expect: "begin-unclosed, truncation line",
+             got: idSet(cutRes) + (cutRes.truncated ? ", truncation line" : ", no truncation line"),
+             pass: idSet(cutRes) === "begin-unclosed" && cutRes.truncated === true});
+
+  /* 27. the nested-VEVENT finding cites the production that forbids it */
+  var nestRes = validate(ENC.encode("BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//A//X//EN\r\n" +
+    "BEGIN:VEVENT\r\n" + BASE + "BEGIN:VEVENT\r\n" + BASE + "END:VEVENT\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n"),
+    {exactOctets: true});
+  var nestCite = "no nested-vevent finding";
+  for(i = 0; i < nestRes.findings.length; i++){
+    if(nestRes.findings[i].id !== "nested-vevent") continue;
+    nestCite = "cites section " + nestRes.findings[i].rfc[0].sec +
+      (nestRes.findings[i].rfc[0].q.indexOf("eventc") === 0 ? ", eventc production" : ", another production");
+    break;
+  }
+  rows.push({name: "the nested-VEVENT finding cites the section 3.6.1 eventc production",
+             expect: "cites section 3.6.1, eventc production", got: nestCite,
+             pass: nestCite === "cites section 3.6.1, eventc production"});
+
+  /* 28. the line-width boundary itself. The positive control is 77 octets, so
+     a detector that fired only above 76 would still pass it. 76 octets is the
+     first width the RFC recommends against, and 75 is the last it allows. */
+  var w76 = "COMMENT:", w75;
+  for(i = 0; i < 68; i++) w76 += "w";            /* 8 + 68 = 76 octets */
+  w75 = w76.slice(0, 75);
+  var r76 = validate(ENC.encode(wrapEvent(BASE + w76 + "\r\n")), {exactOctets: true});
+  var r75 = validate(ENC.encode(wrapEvent(BASE + w75 + "\r\n")), {exactOctets: true});
+  rows.push({name: "a physical line of exactly 76 octets reports line-width",
+             expect: "76 octets, line-width", got: ENC.encode(w76).length + " octets, " + idSet(r76),
+             pass: ENC.encode(w76).length === 76 && idSet(r76) === "line-width"});
+  rows.push({name: "a physical line of exactly 75 octets reports nothing",
+             expect: "75 octets, (none)", got: ENC.encode(w75).length + " octets, " + idSet(r75),
+             pass: ENC.encode(w75).length === 75 && idSet(r75) === "(none)"});
+
+  /* POSITIVE CONTROL, last row. Written to fail. */
+  rows.push({name: "POSITIVE CONTROL: this assertion is written to fail",
+             expect: "1 equals 2", got: "1 does not equal 2", pass: false, control: true});
+
+  var passed = 0, failed = 0, controlFailed = false;
+  for(i = 0; i < rows.length; i++){
+    var r = rows[i];
+    var tr = document.createElement("tr");
+    var td1 = el("td", null, r.name);
+    var td2 = el("td", null, r.expect);
+    var td3 = el("td", null, r.got);
+    var td4 = el("td");
+    if(r.control){
+      td4.appendChild(el("span", "ctl", r.pass ? "CONTROL DID NOT FAIL" : "FAILED AS DESIGNED"));
+      controlFailed = !r.pass;
+    } else {
+      td4.appendChild(el("span", r.pass ? "pass" : "fail", r.pass ? "PASS" : "FAIL"));
+      if(r.pass) passed++; else failed++;
+    }
+    tr.appendChild(td1); tr.appendChild(td2); tr.appendChild(td3); tr.appendChild(td4);
+    tbody.appendChild(tr);
+  }
+
+  var total = passed + failed;
+  var msg = passed + " of " + total + " assertions passed. " +
+    tripped + " of " + FIXTURES.length + " checks tripped their positive control. " +
+    "Clean fixture produced " + cleanCount + " findings. Positive control: " +
+    (controlFailed ? "failed as designed, so the harness is running."
+                   : "DID NOT FAIL, so this self test cannot be trusted.");
+  var sum = $("selftest-summary");
+  clear(sum);
+  sum.appendChild(el("span", failed === 0 && controlFailed ? "pass" : "fail",
+                     failed === 0 && controlFailed ? "SELF TEST OK" : "SELF TEST FAILED"));
+  sum.appendChild(document.createTextNode(" " + msg));
+  $("selftest").hidden = false;
+  $("verdict").hidden = true;
+  $("results").hidden = true;
+  $("input-error").hidden = true;
+}
+
+$("btn-selftest").addEventListener("click", runSelfTest);
+
+/* ------------------------------------------------------------------ *
+ * Wiring: build panel
+ * ------------------------------------------------------------------ */
+function syncBuildForm(){
+  var mode = $("b-timemode").value, em = $("b-endmode").value;
+  $("b-tzid").disabled = (mode !== "tzid");
+  $("tzid-warning").hidden = (mode !== "tzid");
+  $("b-end").disabled = (em !== "dtend");
+  $("b-duration").disabled = (em !== "duration");
+}
+$("b-timemode").addEventListener("change", syncBuildForm);
+$("b-endmode").addEventListener("change", syncBuildForm);
+syncBuildForm();
+
+function doBuild(){
+  var cfg = {
+    summary: $("b-summary").value, description: $("b-description").value, location: $("b-location").value,
+    start: $("b-start").value, end: $("b-end").value, duration: $("b-duration").value,
+    endMode: $("b-endmode").value, timeMode: $("b-timemode").value, tzid: $("b-tzid").value.trim(),
+    freq: $("b-freq").value, interval: $("b-interval").value, limit: $("b-limit").value,
+    limitVal: $("b-limitval").value.trim(), byday: $("b-byday").value.trim().toUpperCase()
+  };
+  var out = buildEvent(cfg);
+  var bv = $("build-verdict"), bf = $("build-findings");
+  clear(bf);
+  if(out.error){
+    $("build-error-text").textContent = out.error;
+    $("build-error").hidden = false;
+    $("build-out").textContent = "No output. Fix the input above and build again.";
+    clear(bv); bv.appendChild(el("p", null, "Nothing built."));
+    return;
+  }
+  $("build-error").hidden = true;
+  $("build-out").textContent = out.text.replace(/\r\n/g, "\n");
+
+  var res = validate(ENC.encode(out.text), {exactOctets: true});
+  clear(bv);
+  if(res.refused){
+    bv.appendChild(el("p", null, res.message));
+    return;
+  }
+  var m = countBy(res, "MUST"), s = countBy(res, "SHOULD"), n = countBy(res, "NOTE");
+  bv.appendChild(el("h2", null, m === 0 ? "Conforming on every check this page runs." : "Not a conforming iCalendar object."));
+  var ul = el("ul", "counts");
+  ul.appendChild(el("li", null, "MUST findings: " + m));
+  ul.appendChild(el("li", null, "SHOULD findings: " + s));
+  ul.appendChild(el("li", null, "Notes: " + n));
+  bv.appendChild(ul);
+  bv.appendChild(el("p", "hint", "Longest physical line in the output stays inside the 75 octet recommendation, " +
+    "so the SHOULD count above is the proof, not a promise."));
+  var i;
+  for(i = 0; i < res.findings.length; i++) bf.appendChild(renderFinding(res.findings[i]));
+}
+
+$("btn-build").addEventListener("click", doBuild);
+
+$("btn-copy").addEventListener("click", function(){
+  var t = $("build-out").textContent;
+  var status = $("copy-status");
+  if(!t || t.indexOf("BEGIN:VCALENDAR") !== 0){
+    status.textContent = "Nothing to copy yet. Press Build .ics first.";
+    return;
+  }
+  var crlf = t.replace(/\n/g, "\r\n");
+  if(navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(crlf).then(function(){
+      status.textContent = "Copied " + crlf.length + " characters with CRLF line endings.";
+    }, function(){
+      status.textContent = "The browser refused clipboard access. Select the output and copy it by hand.";
+    });
+  } else {
+    status.textContent = "This browser exposes no clipboard method. Select the output and copy it by hand.";
+  }
+});
+
+$("btn-download").addEventListener("click", function(){
+  var t = $("build-out").textContent;
+  var status = $("copy-status");
+  if(!t || t.indexOf("BEGIN:VCALENDAR") !== 0){
+    status.textContent = "Nothing to download yet. Press Build .ics first.";
+    return;
+  }
+  var crlf = t.replace(/\n/g, "\r\n");
+  try {
+    var blob = new Blob([crlf], {type: "text/calendar;charset=utf-8"});
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement("a");
+    a.href = url; a.download = "event.ics";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(function(){ URL.revokeObjectURL(url); }, 4000);
+    status.textContent = "Download started. If nothing happened, the page is in a sandbox that blocks " +
+                         "script-driven downloads. Use Copy output instead.";
+  } catch(e){
+    status.textContent = "Download is blocked here. Use Copy output instead.";
+  }
+});
+
+/* ------------------------------------------------------------------ *
+ * Tabs
+ * ------------------------------------------------------------------ */
+var tabs = [$("tab-validate"), $("tab-build")];
+var panels = [$("panel-validate"), $("panel-build")];
+function selectTab(idx){
+  var i;
+  for(i = 0; i < tabs.length; i++){
+    tabs[i].setAttribute("aria-selected", i === idx ? "true" : "false");
+    tabs[i].tabIndex = i === idx ? 0 : -1;
+    panels[i].hidden = i !== idx;
+  }
+  tabs[idx].focus();
+}
+tabs.forEach(function(t, i){
+  t.addEventListener("click", function(){ selectTab(i); });
+  t.addEventListener("keydown", function(e){
+    if(e.key === "ArrowRight" || e.key === "ArrowDown"){ e.preventDefault(); selectTab((i + 1) % tabs.length); }
+    else if(e.key === "ArrowLeft" || e.key === "ArrowUp"){ e.preventDefault(); selectTab((i + tabs.length - 1) % tabs.length); }
+    else if(e.key === "Home"){ e.preventDefault(); selectTab(0); }
+    else if(e.key === "End"){ e.preventDefault(); selectTab(tabs.length - 1); }
+  });
+});
+
+})();
+</script>
+</body>
+</html>
