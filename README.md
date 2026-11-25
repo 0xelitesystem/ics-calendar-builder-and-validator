@@ -1,7 +1,7 @@
 # ICS Calendar Builder and Validator
 
 Calendar .ics validator and builder. Paste an .ics file and see RFC 5545 findings grouped MUST, SHOULD and note, or build an event file folded correctly at 75 octets. Single file, offline.
-RRULE is a recurrence rule, not a cron expression, so if you came here for cron syntax you want [cron-builder](https://github.com/0xelitesystem/cron-builder) or [cron-expression-explainer](https://github.com/0xelitesystem/cron-expression-explainer) instead. Those two read a different grammar and this page does not touch it.
+RRULE is a recurrence rule, not a cron expression, so if you came here for cron syntax you want [cron-next-runs-builder](https://github.com/0xelitesystem/cron-next-runs-builder) or [cron-expression-explainer](https://github.com/0xelitesystem/cron-expression-explainer) instead. Those two read a different grammar and this page does not touch it.
 
 **Live demo:** https://0xelitesystem.github.io/ics-calendar-builder-and-validator/
 
@@ -77,5 +77,5 @@ MIT. Copyright (c) 2026 RBL Industries LLC.
 ## Related
 
 - [json-formatter-and-validator](https://github.com/0xelitesystem/json-formatter-and-validator) for the same shape of question about a different format.
-- [cron-builder](https://github.com/0xelitesystem/cron-builder) and [cron-expression-explainer](https://github.com/0xelitesystem/cron-expression-explainer) for cron, which is the other recurrence grammar and not this one.
+- [cron-next-runs-builder](https://github.com/0xelitesystem/cron-next-runs-builder) and [cron-expression-explainer](https://github.com/0xelitesystem/cron-expression-explainer) for cron, which is the other recurrence grammar and not this one.
 - [timezone-converter](https://github.com/0xelitesystem/timezone-converter) for offset arithmetic, which this page deliberately refuses to do.
