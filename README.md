@@ -76,6 +76,6 @@ MIT. Copyright (c) 2026 RBL Industries LLC.
 
 ## Related
 
-- [json-formatter-and-validator](https://github.com/0xelitesystem/json-formatter-and-validator) for the same shape of question about a different format.
+- [json-format-minify-validate](https://github.com/0xelitesystem/json-format-minify-validate) for the same shape of question about a different format.
 - [cron-next-runs-builder](https://github.com/0xelitesystem/cron-next-runs-builder) and [cron-plain-english-reader](https://github.com/0xelitesystem/cron-plain-english-reader) for cron, which is the other recurrence grammar and not this one.
 - [multi-zone-meeting-picker](https://github.com/0xelitesystem/multi-zone-meeting-picker) for offset arithmetic, which this page deliberately refuses to do.
